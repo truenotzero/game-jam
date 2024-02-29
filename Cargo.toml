@@ -1,0 +1,11 @@
+[package]
+name = "breakout"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+glfw = { version = "0.55.0", default-features = false }
+
+[build-dependencies]
+gl_generator = "0.14.0"
