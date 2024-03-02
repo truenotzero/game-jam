@@ -1,5 +1,7 @@
 #version 450 core
 
+uniform mat4 uScreen;
+
 // per vertex
 layout (location = 0) in vec3 aPos;
 // per instance
@@ -11,7 +13,5 @@ out flat vec3 color;
 
 void main() {
     gl_Position = vec4(aTransform * aPos, 1.0);
-    gl_Position = vec4(aPos, 1.0);
-
     color = aCol;
 }

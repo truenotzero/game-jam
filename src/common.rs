@@ -4,6 +4,7 @@ pub enum Error {
     BadShaderType,
     ParseError,
     ShaderCompilationError(String),
+    InstanceLimit,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -12,14 +13,11 @@ pub trait AsBytes {
     unsafe fn as_bytes(&self) -> &[u8];
 }
 
-macro_rules! as_bytes{
+macro_rules! as_bytes {
     ($ty:ty) => {
         impl crate::common::AsBytes for $ty {
             unsafe fn as_bytes(&self) -> &[u8] {
-                core::slice::from_raw_parts(
-                    (self as *const $ty).cast(),
-                    std::mem::size_of::<$ty>()
-                ) 
+                core::slice::from_raw_parts((self as *const $ty).cast(), std::mem::size_of::<$ty>())
             }
         }
 
@@ -27,8 +25,8 @@ macro_rules! as_bytes{
             unsafe fn as_bytes(&self) -> &[u8] {
                 core::slice::from_raw_parts(
                     self.as_ptr().cast(),
-                    std::mem::size_of::<$ty>() * self.len()
-                ) 
+                    std::mem::size_of::<$ty>() * self.len(),
+                )
             }
         }
     };

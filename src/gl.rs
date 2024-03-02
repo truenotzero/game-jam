@@ -1,6 +1,7 @@
 use std::{
     fs::read_to_string,
-    mem::{offset_of, size_of},
+    mem::{offset_of, size_of, size_of_val},
+    ops::BitOr,
     path::Path,
     ptr::{null, null_mut},
 };
@@ -8,8 +9,7 @@ use std::{
 use glfw::Context;
 
 use crate::{
-    common::{AsBytes, Error, Result},
-    render::{Instance, Vertex},
+    common::{AsBytes, Error, Result}, math::{Mat3, Vec3}, render::{Instance, Vertex}
 };
 
 pub mod raw {
@@ -88,15 +88,38 @@ impl<'a> Vao<'a> {
         instance_data.bind();
         // shape transform, mat3 = 3 vecs = takes up 3 indices (1,2,3)
         call!(EnableVertexAttribArray(1));
+        let mat_offset = offset_of!(Instance, transform);
         call!(VertexAttribPointer(
             1,
-            1,
-            raw::UNSIGNED_BYTE,
+            3,
+            raw::FLOAT,
             raw::FALSE,
             size_of::<Instance>() as _,
-            offset_of!(Instance, frame) as _,
+            mat_offset as _,
+        ));
+        call!(VertexAttribDivisor(1, 1));
+        call!(EnableVertexAttribArray(2));
+        let mat_offset = mat_offset + size_of::<Vec3>();
+        call!(VertexAttribPointer(
+            2,
+            3,
+            raw::FLOAT,
+            raw::FALSE,
+            size_of::<Instance>() as _,
+            mat_offset as _,
         ));
         call!(VertexAttribDivisor(2, 1));
+        call!(EnableVertexAttribArray(3));
+        let mat_offset = mat_offset + size_of::<Vec3>();
+        call!(VertexAttribPointer(
+            3,
+            3,
+            raw::FLOAT,
+            raw::FALSE,
+            size_of::<Instance>() as _,
+            mat_offset as _,
+        ));
+        call!(VertexAttribDivisor(3, 1));
 
         // color
         call!(EnableVertexAttribArray(4));
@@ -113,7 +136,7 @@ impl<'a> Vao<'a> {
         // animation frame
         call!(EnableVertexAttribArray(5));
         call!(VertexAttribPointer(
-            2,
+            5,
             1,
             raw::UNSIGNED_BYTE,
             raw::FALSE,
@@ -130,18 +153,18 @@ impl<'a> Drop for Vao<'a> {
     }
 }
 
-pub enum BufferUsage {
-    Static,
-    Dynamic,
-}
+pub mod buffer_flags {
+    use super::raw::GLuint;
 
-impl From<BufferUsage> for raw::GLenum {
-    fn from(value: BufferUsage) -> Self {
-        match value {
-            BufferUsage::Static => raw::STATIC_DRAW,
-            BufferUsage::Dynamic => raw::DYNAMIC_DRAW,
-        }
-    }
+    pub type Type = GLuint;
+
+    pub const DEFAULT: Type = 0;
+    pub const MAP_READ: Type = 0x0001;
+    pub const MAP_WRITE: Type = 0x0002;
+    pub const DYNAMIC_STORAGE: Type = 0x0100;
+    pub const CLIENT_STORAGE: Type = 0x0200;
+    pub const MAP_PERSISTENT: Type = 0x0040;
+    pub const MAP_COHERENT: Type = 0x0080;
 }
 
 pub struct Buffer<'a, const T: raw::GLenum>(GlObject<'a>);
@@ -160,9 +183,21 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
         call!(BindBuffer(T, self.0 .0));
     }
 
-    pub fn alloc(&self, bytes: &[u8], usage: BufferUsage) {
-        self.bind();
-        call!(BufferData(T, bytes.len() as _, bytes.as_ptr().cast(), usage.into()));
+    fn init(&self, data_size: usize, data_ptr: *const u8, flags: buffer_flags::Type) {
+        call!(NamedBufferStorage(self.0.0, data_size as _, data_ptr.cast(), flags));
+    }
+
+    pub fn reserve(&self, buffer_size: usize, flags: buffer_flags::Type) {
+        self.init(buffer_size, null(), flags)
+    }
+
+    pub fn set(&self, bytes: &[u8], flags: buffer_flags::Type) {
+        self.init(bytes.len(), bytes.as_ptr(), flags)
+    }
+
+    /// requires having passed the DYNAMIC_STORAGE flag in alloc
+    pub fn update(&self, offset: usize, bytes: &[u8]) {
+        call!(NamedBufferSubData(self.0.0, offset as _, bytes.len() as _, bytes.as_ptr().cast()));
     }
 }
 

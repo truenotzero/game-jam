@@ -4,13 +4,18 @@ use std::{
 };
 
 use gl::{DrawContext, Shader};
-use glfw::Context;
-use render::InstancedShapeManager;
+use glfw::{Context, OpenGlProfileHint};
+use math::{Mat3, Vec3};
+use render::{Instance, InstancedShapeManager};
+use glfw::WindowHint;
+
+use crate::math::Mat4;
 
 mod common;
 mod gl;
 mod math;
 mod render;
+mod scene;
 
 struct Game<'a> {
     quads: InstancedShapeManager<'a>,
@@ -22,8 +27,16 @@ impl<'a> Game<'a> {
         let shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
             .expect("Failed to compile shader");
 
+        let screen = Mat4::screen(2.0, 2.0);
+
+        let mut quads= InstancedShapeManager::quads(ctx, 1);
+        quads.new_instance(Some(Instance {
+            // transform: Mat3::translate(translate)
+            col: (0.0, 1.0, 0.0).into(),
+            ..Default::default()
+        })).expect("Bad alloc of instance");
         Self {
-            quads: InstancedShapeManager::quads(ctx),
+            quads,
             shader,
         }
     }
@@ -45,11 +58,17 @@ struct Window {
 impl Window {
     fn new() -> Self {
         let mut glfw = glfw::init(glfw::fail_on_errors).expect("Failed to init GLFW");
+
+        // window hints
+        glfw.window_hint(WindowHint::OpenGlProfile(OpenGlProfileHint::Core));
+        glfw.window_hint(WindowHint::ContextVersion(4, 5));
+
         let (mut window, event_pump) = glfw
-            .create_window(1200, 1200, "Breakout", glfw::WindowMode::Windowed)
+            .create_window(1200, 1200, "Snek", glfw::WindowMode::Windowed)
             .expect("Failed to create window");
 
         // window setup
+        window.set_resizable(false);
         let draw_context = DrawContext::create(&mut window);
 
         // set up opengl stuff here
