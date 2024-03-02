@@ -9,7 +9,7 @@ use std::{
 use glfw::Context;
 
 use crate::{
-    common::{AsBytes, Error, Result}, math::{Mat3, Vec3}, render::{Instance, Vertex}
+    common::{AsBytes, Error, Result}, math::{ Vec3, Vec4}, render::{Instance, Vertex}
 };
 
 pub mod raw {
@@ -91,7 +91,7 @@ impl<'a> Vao<'a> {
         let mat_offset = offset_of!(Instance, transform);
         call!(VertexAttribPointer(
             1,
-            3,
+            4,
             raw::FLOAT,
             raw::FALSE,
             size_of::<Instance>() as _,
@@ -99,10 +99,10 @@ impl<'a> Vao<'a> {
         ));
         call!(VertexAttribDivisor(1, 1));
         call!(EnableVertexAttribArray(2));
-        let mat_offset = mat_offset + size_of::<Vec3>();
+        let mat_offset = mat_offset + size_of::<Vec4>();
         call!(VertexAttribPointer(
             2,
-            3,
+            4,
             raw::FLOAT,
             raw::FALSE,
             size_of::<Instance>() as _,
@@ -110,40 +110,51 @@ impl<'a> Vao<'a> {
         ));
         call!(VertexAttribDivisor(2, 1));
         call!(EnableVertexAttribArray(3));
-        let mat_offset = mat_offset + size_of::<Vec3>();
+        let mat_offset = mat_offset + size_of::<Vec4>();
         call!(VertexAttribPointer(
             3,
-            3,
+            4,
             raw::FLOAT,
             raw::FALSE,
             size_of::<Instance>() as _,
             mat_offset as _,
         ));
         call!(VertexAttribDivisor(3, 1));
-
-        // color
         call!(EnableVertexAttribArray(4));
+        let mat_offset = mat_offset + size_of::<Vec4>();
         call!(VertexAttribPointer(
             4,
+            4,
+            raw::FLOAT,
+            raw::FALSE,
+            size_of::<Instance>() as _,
+            mat_offset as _,
+        ));
+        call!(VertexAttribDivisor(4, 1));
+
+        // color
+        call!(EnableVertexAttribArray(5));
+        call!(VertexAttribPointer(
+            5,
             3,
             raw::FLOAT,
             raw::FALSE,
             size_of::<Instance>() as _,
             offset_of!(Instance, col) as _,
         ));
-        call!(VertexAttribDivisor(4, 1));
+        call!(VertexAttribDivisor(5, 1));
 
         // animation frame
-        call!(EnableVertexAttribArray(5));
+        call!(EnableVertexAttribArray(6));
         call!(VertexAttribPointer(
-            5,
+            6,
             1,
             raw::UNSIGNED_BYTE,
             raw::FALSE,
             size_of::<Instance>() as _,
             offset_of!(Instance, frame) as _,
         ));
-        call!(VertexAttribDivisor(5, 1));
+        call!(VertexAttribDivisor(6, 1));
     }
 }
 

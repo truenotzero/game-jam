@@ -5,7 +5,6 @@ use std::{
 
 use gl::{DrawContext, Shader};
 use glfw::{Context, OpenGlProfileHint};
-use math::{Mat3, Vec3};
 use render::{Instance, InstancedShapeManager};
 use glfw::WindowHint;
 
@@ -27,12 +26,22 @@ impl<'a> Game<'a> {
         let shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
             .expect("Failed to compile shader");
 
-        let screen = Mat4::screen(2.0, 2.0);
-
-        let mut quads= InstancedShapeManager::quads(ctx, 1);
+        
+        let screen = Mat4::screen(3.0, 3.0);
+        let mut quads= InstancedShapeManager::quads(ctx, 32, Mat4::identity());
         quads.new_instance(Some(Instance {
-            // transform: Mat3::translate(translate)
+            transform: screen,
+            col: (1.0, 0.0, 0.0).into(),
+            ..Default::default()
+        })).expect("Bad alloc of instance");
+        quads.new_instance(Some(Instance {
+            transform: screen * Mat4::translate((1.0).into()),
             col: (0.0, 1.0, 0.0).into(),
+            ..Default::default()
+        })).expect("Bad alloc of instance");
+        quads.new_instance(Some(Instance {
+            transform: screen * Mat4::translate((2.0).into()),
+            col: (0.0, 0.0, 1.0).into(),
             ..Default::default()
         })).expect("Bad alloc of instance");
         Self {

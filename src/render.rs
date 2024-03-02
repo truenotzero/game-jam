@@ -3,7 +3,7 @@ use std::{mem::{size_of, size_of_val}, ptr::null};
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, buffer_flags, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
-    math::{Mat3, Mat4, Vec3},
+    math::{ Mat4, Vec3},
 };
 
 // per vertex
@@ -16,7 +16,7 @@ pub struct Vertex {
 // per instance
 #[derive(Default)]
 pub struct Instance {
-    pub transform: Mat3, // shape transform
+    pub transform: Mat4, // shape transform
     pub col: Vec3,       // shape color
     pub frame: u8,       // shape animation frame for SMOOTH ANIMATIONSSSSSSSSSSSSS
 }
@@ -72,16 +72,16 @@ impl<'a> InstancedShapeManager<'a> {
             vertex_data.set(
                 [
                     Vertex {
-                        pos: Vec3::new(-0.5, 0.5, 0.0),
+                        pos: Vec3::new(0.0, 0.0, 0.0),
                     },
                     Vertex {
-                        pos: Vec3::new(-0.5, -0.5, 0.0),
+                        pos: Vec3::new(1.0, 0.0, 0.0),
                     },
                     Vertex {
-                        pos: Vec3::new(0.5, -0.5, 0.0),
+                        pos: Vec3::new(1.0, 1.0, 0.0),
                     },
                     Vertex {
-                        pos: Vec3::new(0.5, 0.5, 0.0),
+                        pos: Vec3::new(0.0, 1.0, 0.0),
                     },
                 ]
                 .as_bytes(),
@@ -122,7 +122,7 @@ impl<'a> InstancedShapeManager<'a> {
             6,
             UNSIGNED_BYTE,
             null(),
-            1
+            self.active_instances as _,
         ));
     }
 }
