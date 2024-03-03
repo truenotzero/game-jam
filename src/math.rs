@@ -1,6 +1,15 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 use crate::common::as_bytes;
+
+fn f32_eq_tolerance(lhs: f32, rhs: f32, tolerance: f32) -> bool {
+    let delta = lhs - rhs;
+    -tolerance < delta && delta < tolerance
+}
+
+pub fn f32_eq(lhs: f32, rhs: f32) -> bool {
+    f32_eq_tolerance(lhs, rhs, 0.01)
+}
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
@@ -19,10 +28,14 @@ impl Vec2 {
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n)
     }
+
+    pub fn eq(self, rhs: Self) -> bool {
+        f32_eq(self.x, rhs.x) && f32_eq(self.y, rhs.y)
+    }
 }
 
 impl Add for Vec2 {
-    type Output=Self;
+    type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
         self.x += rhs.x;
@@ -31,8 +44,18 @@ impl Add for Vec2 {
     }
 }
 
+impl Sub for Vec2 {
+    type Output = Self;
+
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self
+    }
+}
+
 impl Mul<Vec2> for f32 {
-    type Output=Vec2;
+    type Output = Vec2;
 
     fn mul(self, mut rhs: Vec2) -> Self::Output {
         rhs.x *= self;
@@ -221,26 +244,44 @@ impl Mat4 {
         Self::scale((-1.0, 1.0).into())
     }
 
-    // screen projection matrix
-    // sets the upper left corner as 0,0
-    // sets the lower right corner as width,height
-    // 
+    // screen projection matrix with each tile's 0,0 being centered
+    pub fn screen_local_center(width: f32, height: f32) -> Self {
+        let l = -0.5;
+        let r = width - 0.5;
+        let t = -0.5;
+        let b = height - 0.5;
+        let f = -1.0;
+        let n = 1.0;
+
+        Self::ortho(r, l, t, b, n, f)
+    }
+
+    // screen projection matrix with each tile's 0,0 being offset
     pub fn screen(width: f32, height: f32) -> Self {
+        let l = 0.0;
+        let r = width;
+        let t = 0.0;
+        let b = height;
+        let f = -1.0;
+        let n = 1.0;
+
+        Self::ortho(r, l, t, b, n, f)
+    }
+
+    fn ortho(r: f32, l: f32, t: f32, b: f32, n: f32, f: f32) -> Self {
         let mut ret = Self::identity();
-        let far = -1.0;
-        let near = 1.0;
-        ret.xy[0][0] = 2.0 / width;
-        ret.xy[1][1] = 2.0 / -height;
-        ret.xy[2][2] = -2.0 / (far - near);
-        ret.xy[3][0] = -1.0;
-        ret.xy[3][1] = 1.0;
-        ret.xy[3][2] = - (far + near) / (far - near);
+        ret.xy[0][0] = 2.0 / (r - l);
+        ret.xy[1][1] = 2.0 / (t - b);
+        ret.xy[2][2] = -2.0 / (f - n);
+        ret.xy[3][0] = (l + r) / (l - r);
+        ret.xy[3][1] = (b + t) / (b - t);
+        ret.xy[3][2] = (n + f) / (n - f);
         ret
     }
 }
 
 impl Mul for Mat4 {
-    type Output=Self;
+    type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
         let mut ret = Self::zero();

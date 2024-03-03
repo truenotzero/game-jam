@@ -1,6 +1,11 @@
 use std::{cell::Cell, collections::VecDeque, ptr::null, time::Duration};
 
-use crate::{common::AsBytes, gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao}, math::{Vec2, Vec4}, render::quad_vertex_helper};
+use crate::{
+    common::{AsBytes, Error},
+    gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
+    math::{Vec2, Vec4},
+    render::quad_vertex_helper,
+};
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum Direction {
@@ -24,18 +29,38 @@ impl From<Direction> for Vec2 {
     }
 }
 
+impl TryFrom<Vec2> for Direction {
+    type Error = Error;
+
+    fn try_from(value: Vec2) -> Result<Self, Self::Error> {
+        if value.eq(Vec2::default()) {
+            Ok(Direction::default())
+        } else if value.eq(Vec2::new(0.0, -1.0)) {
+            Ok(Direction::Up)
+        } else if value.eq(Vec2::new(0.0, 1.0)) {
+            Ok(Direction::Down)
+        } else if value.eq(Vec2::new(-1.0, 0.0)) {
+            Ok(Direction::Left)
+        } else if value.eq(Vec2::new(1.0, 0.0)) {
+            Ok(Direction::Right)
+        } else {
+            Err(Error::BadDirection)
+        }
+    }
+}
+
 pub struct Snake<'a> {
     direction: Direction,
     body: VecDeque<Vec2>,
     grow_next_tick: bool,
 
     move_timer: Duration,
+    move_cooldown: Duration,
 
     // cache values, which are logically immutable, while practically being mutable
     // to speed up rendering
     // but then again it's 2d lol
-    generate_draw_data: Cell<bool>, 
-    num_indices: Cell<gl::raw::GLsizei>,
+    animation: Direction,
 
     vao: Vao<'a>,
     vertex_data: ArrayBuffer<'a>,
@@ -60,9 +85,9 @@ impl<'a> Snake<'a> {
             grow_next_tick: false,
 
             move_timer: Duration::ZERO,
+            move_cooldown: Duration::from_millis(100),
 
-            generate_draw_data: Cell::new(true),
-            num_indices: Cell::default(),
+            animation: Direction::default(),
 
             vao,
             vertex_data,
@@ -79,24 +104,22 @@ impl<'a> Snake<'a> {
     }
 
     pub fn tick(&mut self, dt: Duration) {
-        let move_cooldown = Duration::from_millis(100);
-
         self.move_timer += dt;
-        if self.move_timer > move_cooldown {
-            self.move_timer -= move_cooldown
+        if self.move_timer > self.move_cooldown {
+            self.move_timer -= self.move_cooldown
         } else {
             return;
         }
 
-        if self.body.len() < 5 {
+        if self.body.len() < 7 {
             self.grow();
         }
 
         let new_head = self.body[0] + self.direction.into();
+        self.animation = self.direction;
 
         if self.grow_next_tick {
             self.grow_next_tick = false;
-            self.generate_draw_data.replace(true);
         } else {
             self.body.pop_back();
         }
@@ -106,23 +129,54 @@ impl<'a> Snake<'a> {
 
     pub fn draw(&self, shader: &Shader) {
         // generate snake vertices on the fly
-        // take gets the value and puts a default (false) in the cell
-        // if self.generate_draw_data.take() {
-            let width = 1.0;
-            let height = 1.0;
-            let (vertices, indices) = quad_vertex_helper(-0.5, self.body.iter().map(|v| Vec4::new(v.x, v.y, width, height)));
-            self.vertex_data.update(0, unsafe { vertices.as_bytes() });
-            self.index_data.update(0, &indices);
+        let pct = self.move_timer.as_secs_f32() / self.move_cooldown.as_secs_f32();
+        let tail = self.body.len() - 1;
+        let (vertices, indices) = quad_vertex_helper(
+            -0.5,
+            self.body.iter().enumerate().map(|(idx, v)| {
+                let mut x = v.x;
+                let mut y = v.y;
+                let mut width = 1.0;
+                let mut height = 1.0;
+                // animate head & tail
+                if idx == 0 {
+                    match self.animation {
+                        Direction::Up => {
+                            height = pct;
+                            y = y + (1.0 - pct);
+                        },
+                        Direction::Left => {
+                            width = pct;
+                            x = x + (1.0 - pct);
+                        }
+                        Direction::Down => height = pct,
+                        Direction::Right => width = pct,
+                        Direction::None => (),
+                    }
+                } else if idx == tail {
+                    let direction = Direction::try_from(self.body[tail - 1] -self.body[tail]).expect("Cannot figure tail direction");
+                    match direction {
+                        Direction::Up => height -= pct,
+                        Direction::Down => y += pct,
+                        Direction::Left => width -= pct,
+                        Direction::Right => x += pct,
+                        Direction::None => (),
+                    }
+                }
+                Vec4::new(x, y, width, height)
+            }),
+        );
+        self.vertex_data.update(0, unsafe { vertices.as_bytes() });
+        self.index_data.update(0, &indices);
 
-            let pct = self.move_timer.as_secs_f32();
-            let anticipate = pct * Vec2::from(self.direction);
-
-            self.num_indices.replace(indices.len() as _);
-        // }
-        
         self.vao.enable();
         self.index_data.bind();
         shader.enable();
-        gl::call!(DrawElements(TRIANGLES, self.num_indices.get(), UNSIGNED_BYTE, null()));
+        gl::call!(DrawElements(
+            TRIANGLES,
+            indices.len() as _,
+            UNSIGNED_BYTE,
+            null()
+        ));
     }
 }

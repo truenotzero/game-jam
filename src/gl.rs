@@ -1,11 +1,19 @@
 use std::{
-    f32::consts::E, ffi::{CStr, CString}, fs::read_to_string, mem::{offset_of, size_of, size_of_val}, ops::BitOr, path::Path, ptr::{null, null_mut}
+    f32::consts::E,
+    ffi::{CStr, CString},
+    fs::read_to_string,
+    mem::{offset_of, size_of, size_of_val},
+    ops::BitOr,
+    path::Path,
+    ptr::{null, null_mut},
 };
 
 use glfw::Context;
 
 use crate::{
-    common::{AsBytes, Error, Result}, math::{ Mat4, Vec3, Vec4}, render::{Instance, Vertex}
+    common::{AsBytes, Error, Result},
+    math::{Mat4, Vec3, Vec4},
+    render::{Instance, Vertex},
 };
 
 pub mod raw {
@@ -83,7 +91,6 @@ impl<'a> Vao<'a> {
             size_of::<Vertex>() as _,
             offset_of!(Vertex, pos) as _,
         ));
-
     }
 
     pub fn bind_instance_attribs(&self, vertex_data: &ArrayBuffer, instance_data: &ArrayBuffer) {
@@ -191,7 +198,7 @@ pub type UniformBuffer<'a> = Buffer<'a, { raw::UNIFORM_BUFFER }>;
 
 impl<'a> UniformBuffer<'a> {
     pub fn bind_buffer_base(&self, bind_point: raw::GLuint) {
-        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0.0));
+        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0 .0));
     }
 }
 
@@ -207,7 +214,12 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     }
 
     fn init(&self, data_size: usize, data_ptr: *const u8, flags: buffer_flags::Type) {
-        call!(NamedBufferStorage(self.0.0, data_size as _, data_ptr.cast(), flags));
+        call!(NamedBufferStorage(
+            self.0 .0,
+            data_size as _,
+            data_ptr.cast(),
+            flags
+        ));
     }
 
     pub fn reserve(&self, buffer_size: usize, flags: buffer_flags::Type) {
@@ -220,7 +232,12 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
 
     /// requires having passed the DYNAMIC_STORAGE flag in alloc
     pub fn update(&self, offset: usize, bytes: &[u8]) {
-        call!(NamedBufferSubData(self.0.0, offset as _, bytes.len() as _, bytes.as_ptr().cast()));
+        call!(NamedBufferSubData(
+            self.0 .0,
+            offset as _,
+            bytes.len() as _,
+            bytes.as_ptr().cast()
+        ));
     }
 }
 
@@ -256,7 +273,7 @@ impl<'a> Shader<'a> {
 
     pub fn locate_uniform(&self, name: &str) -> Option<raw::GLint> {
         let name = CString::new(name).expect("Bad uniform name");
-        let location = call!(GetUniformLocation(self.0.0, name.as_ptr().cast()));
+        let location = call!(GetUniformLocation(self.0 .0, name.as_ptr().cast()));
         if location != -1 {
             Some(location)
         } else {
@@ -339,5 +356,3 @@ impl Uniform for Mat4 {
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
-
-

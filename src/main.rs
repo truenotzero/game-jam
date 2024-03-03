@@ -5,9 +5,9 @@ use std::{
 
 use common::AsBytes;
 use gl::{DrawContext, Shader, Uniform, UniformBuffer};
+use glfw::WindowHint;
 use glfw::{Context, OpenGlProfileHint};
 use render::{Instance, InstancedShapeManager};
-use glfw::WindowHint;
 use scene::Scene;
 use snake::Snake;
 
@@ -44,7 +44,6 @@ impl<'a> Game<'a> {
         let instanced_shader = Shader::from_file(ctx, Path::new("res/shaders/instanced"))
             .expect("Failed to compile instanced shader");
 
-        
         let scene = Scene::new(ctx, width, height);
 
         let snake = Snake::new(ctx, (0.0).into());
@@ -133,8 +132,12 @@ impl Window {
             self.glfw.poll_events();
             for (_, e) in glfw::flush_messages(&self.event_pump) {
                 match e {
-                    glfw::WindowEvent::Key(key, _, glfw::Action::Press, _) => game.key_press(key, true),
-                    glfw::WindowEvent::Key(key, _, glfw::Action::Release, _) => game.key_press(key, false),
+                    glfw::WindowEvent::Key(key, _, glfw::Action::Press, _) => {
+                        game.key_press(key, true)
+                    }
+                    glfw::WindowEvent::Key(key, _, glfw::Action::Release, _) => {
+                        game.key_press(key, false)
+                    }
                     _ => (),
                 }
             }

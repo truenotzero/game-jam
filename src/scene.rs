@@ -1,7 +1,10 @@
 use std::mem;
 
-use crate::{gl::{DrawContext, Shader}, math::{Mat4, Vec3}, render::{Instance, InstancedShapeManager}};
-
+use crate::{
+    gl::{DrawContext, Shader},
+    math::{Mat4, Vec3},
+    render::{Instance, InstancedShapeManager},
+};
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum Tile {
@@ -24,7 +27,7 @@ pub struct Scene<'a> {
     height: usize,
     tiles: Vec<Tile>,
 
-    renderer: InstancedShapeManager<'a>
+    renderer: InstancedShapeManager<'a>,
 }
 
 impl<'a> Scene<'a> {
@@ -33,12 +36,14 @@ impl<'a> Scene<'a> {
         let mut renderer = InstancedShapeManager::quads(ctx, width * height);
         for y in 0..height {
             for x in 0..width {
-            renderer.new_instance(Some(Instance {
-                transform: Mat4::translate((x as f32, y as f32).into()),
-                col: Tile::default().color(),
-                ..Default::default()
-            })).expect("Failed to build scene, out VRAM for tiles");
-        }
+                renderer
+                    .new_instance(Some(Instance {
+                        transform: Mat4::translate((x as f32, y as f32).into()),
+                        col: Tile::default().color(),
+                        ..Default::default()
+                    }))
+                    .expect("Failed to build scene, out VRAM for tiles");
+            }
         }
 
         let mut this = Self {
@@ -76,11 +81,14 @@ impl<'a> Scene<'a> {
         let old_tile = mem::replace(&mut self.tiles[id], tile);
         if tile != old_tile {
             // send data to the gpu
-            self.renderer.set_instance(id, Instance {
-                transform: Mat4::translate((x as f32, y as f32).into()),
-                col: tile.color(),
-                ..Default::default()
-            })
+            self.renderer.set_instance(
+                id,
+                Instance {
+                    transform: Mat4::translate((x as f32, y as f32).into()),
+                    col: tile.color(),
+                    ..Default::default()
+                },
+            )
         }
     }
 

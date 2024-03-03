@@ -5,6 +5,7 @@ pub enum Error {
     ParseError,
     ShaderCompilationError(String),
     InstanceLimit,
+    BadDirection,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
