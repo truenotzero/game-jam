@@ -1,10 +1,7 @@
 use std::{cell::Cell, collections::VecDeque, ptr::null, time::Duration};
 
 use crate::{
-    common::{AsBytes, Error},
-    gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
-    math::{Vec2, Vec4},
-    render::quad_vertex_helper,
+    common::{AsBytes, Error}, gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Uniform, Vao}, math::{Vec2, Vec4}, palette::Palette, render::quad_vertex_helper
 };
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -15,6 +12,18 @@ pub enum Direction {
     Down,
     Left,
     Right,
+}
+
+impl Direction {
+    pub fn opposite(self) -> Direction {
+        match self {
+            Direction::None => Direction::None,
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
 }
 
 impl From<Direction> for Vec2 {
@@ -57,9 +66,7 @@ pub struct Snake<'a> {
     move_timer: Duration,
     move_cooldown: Duration,
 
-    // cache values, which are logically immutable, while practically being mutable
-    // to speed up rendering
-    // but then again it's 2d lol
+    palette: Palette,
     animation: Direction,
 
     vao: Vao<'a>,
@@ -68,7 +75,7 @@ pub struct Snake<'a> {
 }
 
 impl<'a> Snake<'a> {
-    pub fn new(ctx: &'a DrawContext, head: Vec2) -> Self {
+    pub fn new(ctx: &'a DrawContext, head: Vec2, palette: Palette) -> Self {
         let body = VecDeque::from([head]);
 
         let vao = Vao::new(ctx);
@@ -87,6 +94,7 @@ impl<'a> Snake<'a> {
             move_timer: Duration::ZERO,
             move_cooldown: Duration::from_millis(100),
 
+            palette,
             animation: Direction::default(),
 
             vao,
@@ -100,7 +108,9 @@ impl<'a> Snake<'a> {
     }
 
     pub fn handle_move(&mut self, direction: Direction) {
-        self.direction = direction;
+        if direction.opposite() != self.direction {
+            self.direction = direction;
+        }
     }
 
     pub fn tick(&mut self, dt: Duration) {
@@ -172,6 +182,8 @@ impl<'a> Snake<'a> {
         self.vao.enable();
         self.index_data.bind();
         shader.enable();
+        let color = shader.locate_uniform("uColor").expect("No uColor in snake shader");
+        self.palette.snake.uniform(color);
         gl::call!(DrawElements(
             TRIANGLES,
             indices.len() as _,

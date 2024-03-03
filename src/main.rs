@@ -1,12 +1,13 @@
 use std::{
-    path::Path,
-    time::{Duration, Instant},
+    ops::{Add, Mul}, path::Path, time::{Duration, Instant}
 };
 
 use common::AsBytes;
 use gl::{DrawContext, Shader, Uniform, UniformBuffer};
 use glfw::WindowHint;
 use glfw::{Context, OpenGlProfileHint};
+use math::ease;
+use palette::Palette;
 use render::{Instance, InstancedShapeManager};
 use scene::Scene;
 use snake::Snake;
@@ -19,10 +20,45 @@ mod math;
 mod render;
 mod scene;
 mod snake;
+mod palette;
+
+struct Lerp {
+    accum: Duration,
+    duration: Duration,
+}
+
+impl Lerp {
+    fn new(duration: Duration) -> Self {
+        Self {
+            accum: duration,
+            duration,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.accum = Duration::ZERO;
+    }
+
+    fn tick(&mut self, dt: Duration) -> bool {
+        self.accum += dt;
+
+        self.accum < self.duration
+    }
+
+
+    fn progress(&self) -> f32 {
+        self.accum.as_secs_f32() / self.duration.as_secs_f32()
+    }
+}
 
 struct Game<'a> {
     snake: Snake<'a>,
     scene: Scene<'a>,
+
+    lerp: Lerp,
+    normal: Mat4,
+    zoom: Mat4,
+    zoomed: bool,
 
     common_uniforms: UniformBuffer<'a>,
     basic_shader: Shader<'a>,
@@ -31,12 +67,15 @@ struct Game<'a> {
 
 impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
-        let common_uniforms = UniformBuffer::new(ctx);
+        let palette = palette::aperture();
+
         let width = 50;
         let height = 50;
-        let screen = Mat4::screen(width as f32, height as f32);
-        common_uniforms.set(unsafe { screen.as_bytes() }, gl::buffer_flags::DEFAULT);
+        let zoom = Mat4::screen(width as f32 / 4.0, height as f32 / 4.0);
+        let normal = Mat4::screen(width as f32, height as f32);
+        let common_uniforms = UniformBuffer::new(ctx);
         common_uniforms.bind_buffer_base(0);
+        common_uniforms.set(unsafe { normal.as_bytes() }, gl::buffer_flags::DYNAMIC_STORAGE);
 
         let basic_shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
             .expect("Failed to compile basic shader");
@@ -44,13 +83,18 @@ impl<'a> Game<'a> {
         let instanced_shader = Shader::from_file(ctx, Path::new("res/shaders/instanced"))
             .expect("Failed to compile instanced shader");
 
-        let scene = Scene::new(ctx, width, height);
+        let scene = Scene::new(ctx, palette, width, height);
 
-        let snake = Snake::new(ctx, (0.0).into());
+        let snake = Snake::new(ctx, (0.0).into(), palette);
 
         Self {
             snake,
             scene,
+
+            lerp: Lerp::new(Duration::from_millis(500)),
+            normal,
+            zoom,
+            zoomed: true,
 
             common_uniforms,
             basic_shader,
@@ -64,6 +108,20 @@ impl<'a> Game<'a> {
     }
 
     fn tick(&mut self, dt: Duration) {
+        if self.lerp.tick(dt) {
+            // lerp active 
+            let (to, from) = if !self.zoomed {
+                (self.normal, self.zoom)
+            } else {
+                (self.zoom, self.normal)
+            };
+
+            let p = ease::out_back(self.lerp.progress());
+            let screen = math::lerp(to, from, p);
+            self.common_uniforms.update(0, unsafe { screen.as_bytes() })
+        }
+
+
         self.snake.tick(dt);
     }
 
@@ -75,6 +133,10 @@ impl<'a> Game<'a> {
                 K::A => self.snake.handle_move(snake::Direction::Left),
                 K::S => self.snake.handle_move(snake::Direction::Down),
                 K::D => self.snake.handle_move(snake::Direction::Right),
+                K::Space => {
+                    self.zoomed = !self.zoomed;
+                    self.lerp.reset();
+                },
                 _ => (),
             }
         }

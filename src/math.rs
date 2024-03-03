@@ -91,6 +91,14 @@ impl Vec3 {
         Self { x, y, z }
     }
 
+    fn norm(n: u8) -> f32 {
+        n as f32 / 255.0
+    }
+
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self::new(Self::norm(r), Self::norm(g), Self::norm(b))
+    }
+
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n, n)
     }
@@ -280,6 +288,19 @@ impl Mat4 {
     }
 }
 
+impl Mul<Mat4> for f32 {
+    type Output = Mat4;
+    
+    fn mul(self, mut rhs: Mat4) -> Self::Output {
+        for y in 0..4 {
+            for x in 0..4 {
+                rhs.xy[x][y] *= self;
+            }
+        }
+        rhs
+    }
+}
+
 impl Mul for Mat4 {
     type Output = Self;
 
@@ -296,5 +317,44 @@ impl Mul for Mat4 {
         }
 
         ret
+    }
+}
+
+impl Add for Mat4 {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        for y in 0..4 {
+            for x in 0..4 {
+                self.xy[x][y] += rhs.xy[x][y]
+            }
+        }
+        self
+    }
+}
+
+
+pub fn lerp<T>(lhs: T, rhs: T, p: f32) -> <<f32 as Mul<T>>::Output as Add>::Output where f32: Mul<T>, <f32 as Mul<T>>::Output: Add {
+    (1.0 - p) * lhs + p * rhs
+}
+
+pub mod ease {
+    pub fn out_quart(p: f32) -> f32 {
+        1.0 - (1.0 - p).powf(4.0)
+    }
+
+    pub fn out_back(p: f32) -> f32 {
+        let c1 = 1.70158;
+        let c3 = c1 + 1.0;
+
+        let p = p - 1.0;
+        1.0 + c3 * p * p * p + c1 * p * p
+    }
+
+    pub fn in_back(p: f32) -> f32 {
+        let c1 = 1.70158;
+        let c3 = c1 + 1.0;
+
+        c3 * p * p * p - c1 * p * p
     }
 }

@@ -356,3 +356,9 @@ impl Uniform for Mat4 {
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
+
+impl Uniform for Vec3 {
+    fn uniform(&self, layout_location: raw::GLint) {
+        call!(Uniform3f(layout_location, self.x, self.y, self.z))
+    }
+}
