@@ -68,7 +68,7 @@ impl<'a> Vao<'a> {
         call!(BindVertexArray(self.0 .0));
     }
 
-    pub fn bind_attrib_src(&self, vertex_data: &ArrayBuffer, instance_data: &ArrayBuffer) {
+    pub fn bind_vertex_attribs(&self, vertex_data: &ArrayBuffer) {
         self.enable();
 
         // per-vertex attributes
@@ -83,6 +83,11 @@ impl<'a> Vao<'a> {
             size_of::<Vertex>() as _,
             offset_of!(Vertex, pos) as _,
         ));
+
+    }
+
+    pub fn bind_instance_attribs(&self, vertex_data: &ArrayBuffer, instance_data: &ArrayBuffer) {
+        self.bind_vertex_attribs(vertex_data);
 
         // per-instance attributes
         instance_data.bind();
@@ -182,6 +187,13 @@ pub struct Buffer<'a, const T: raw::GLenum>(GlObject<'a>);
 
 pub type ArrayBuffer<'a> = Buffer<'a, { raw::ARRAY_BUFFER }>;
 pub type IndexBuffer<'a> = Buffer<'a, { raw::ELEMENT_ARRAY_BUFFER }>;
+pub type UniformBuffer<'a> = Buffer<'a, { raw::UNIFORM_BUFFER }>;
+
+impl<'a> UniformBuffer<'a> {
+    pub fn bind_buffer_base(&self, bind_point: raw::GLuint) {
+        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0.0));
+    }
+}
 
 impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     pub fn new(ctx: &'a DrawContext) -> Self {
@@ -327,3 +339,5 @@ impl Uniform for Mat4 {
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
+
+

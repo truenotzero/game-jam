@@ -1,17 +1,15 @@
 #version 450 core
 
-uniform mat4 uScreen;
+layout(std140, binding = 0) uniform Common {
+    mat4 uScreen;
+};
 
 // per vertex
 layout (location = 0) in vec4 aPos;
-// per instance
-layout (location = 1) in mat4 aTransform;
-layout (location = 5) in vec3 aCol;
-layout (location = 6) in uint aFrame;
 
 out flat vec3 color;
 
 void main() {
-    gl_Position = uScreen * aTransform * aPos;
-    color = aCol;
+    gl_Position = uScreen * aPos;
+    color = vec3(0.0, 1.0, 0.0);
 }

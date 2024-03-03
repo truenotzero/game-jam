@@ -3,7 +3,7 @@ use std::{mem::{size_of, size_of_val}, ptr::null};
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, buffer_flags, call, ArrayBuffer, DrawContext, IndexBuffer, Shader, Uniform, Vao},
-    math::{ Mat4, Vec3},
+    math::{ Mat4, Vec3, Vec4},
 };
 
 // per vertex
@@ -30,7 +30,6 @@ pub struct InstancedShapeManager<'a> {
     _vertex_data: ArrayBuffer<'a>,
     instance_data: ArrayBuffer<'a>,
 
-    screen_matrix: Mat4,
     num_indices: usize,
     active_instances: usize,
     max_instances: usize,
@@ -43,7 +42,6 @@ impl<'a> InstancedShapeManager<'a> {
         index_data: IndexBuffer<'a>,
         max_instances: usize,
         num_indices: usize,
-        screen_matrix: Mat4,
     ) -> Self {
         let vao = Vao::new(ctx);
 
@@ -52,21 +50,20 @@ impl<'a> InstancedShapeManager<'a> {
         instance_data.reserve(size_of::<Instance>() * max_instances, gl::buffer_flags::DYNAMIC_STORAGE);
 
         // set up vertex_data + indices
-        vao.bind_attrib_src(&vertex_data, &instance_data);
+        vao.bind_instance_attribs(&vertex_data, &instance_data);
         Self {
             vao,
             index_data,
             _vertex_data: vertex_data,
             instance_data,
 
-            screen_matrix,
             num_indices,
             active_instances: 0,
             max_instances,
         }
     }
 
-    pub fn quads(ctx: &'a DrawContext, max_instances: usize, screen_matrix: Mat4) -> Self {
+    pub fn quads(ctx: &'a DrawContext, max_instances: usize) -> Self {
         let vertex_data = ArrayBuffer::new(ctx);
 
         unsafe {
@@ -94,7 +91,17 @@ impl<'a> InstancedShapeManager<'a> {
         let index_data = IndexBuffer::new(ctx);
         index_data.set(&indices, gl::buffer_flags::DEFAULT);
 
-        Self::new(ctx, vertex_data, index_data, max_instances, indices.len(), screen_matrix)
+        Self::new(ctx, vertex_data, index_data, max_instances, indices.len())
+    }
+
+    /// enable instances for use without initializing
+    pub unsafe fn enable_instances(&mut self, num_instances: usize) -> Result<()> {
+        if num_instances > self.max_instances {
+            return Err(Error::InstanceLimit);
+        }
+
+        self.active_instances = num_instances;
+        Ok(())
     }
 
     pub fn new_instance(&mut self, data: Option<Instance>) -> Result<usize> {
@@ -118,8 +125,6 @@ impl<'a> InstancedShapeManager<'a> {
 
     pub fn draw(&self, shader: &Shader) {
         shader.enable();
-        let screen_location = shader.locate_uniform("uScreen").expect("uScreen not found in shader");
-        self.screen_matrix.uniform(screen_location);
 
         self.vao.enable();
         self.index_data.bind();
@@ -131,4 +136,43 @@ impl<'a> InstancedShapeManager<'a> {
             self.active_instances as _,
         ));
     }
+}
+
+// each quad is in the format (x, y, w, h)
+// generates vertices + indices
+pub fn quad_vertex_helper(depth: f32, quads: impl Iterator<Item=Vec4>) -> (Vec<Vertex>, Vec<u8>) {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+
+    let index_key = [0, 1, 2, 2, 3, 0];
+    let unique_vertices_per_quad = 4;
+    let mut accum = 0;
+    for quad in quads {
+        let top_left = Vertex {
+            pos: Vec3::new(quad.x, quad.y, depth),
+        };
+        vertices.push(top_left);
+
+        let top_right = Vertex {
+            pos: Vec3::new(quad.x + quad.z, quad.y, depth),
+        };
+        vertices.push(top_right);
+
+        let bottom_right = Vertex {
+            pos: Vec3::new(quad.x + quad.z, quad.y + quad.w, depth),
+        };
+        vertices.push(bottom_right);
+
+        let bottom_left = Vertex {
+            pos: Vec3::new(quad.x, quad.y + quad.w, depth),
+        };
+        vertices.push(bottom_left);
+
+        for idx in index_key {
+            indices.push(accum + idx);
+        }
+        accum += unique_vertices_per_quad;
+    }
+    
+    (vertices, indices)
 }

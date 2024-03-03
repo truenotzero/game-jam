@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 
 use crate::common::as_bytes;
 
@@ -18,6 +18,26 @@ impl Vec2 {
 
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n)
+    }
+}
+
+impl Add for Vec2 {
+    type Output=Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self
+    }
+}
+
+impl Mul<Vec2> for f32 {
+    type Output=Vec2;
+
+    fn mul(self, mut rhs: Vec2) -> Self::Output {
+        rhs.x *= self;
+        rhs.y *= self;
+        rhs
     }
 }
 

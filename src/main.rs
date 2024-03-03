@@ -3,10 +3,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gl::{DrawContext, Shader};
+use common::AsBytes;
+use gl::{DrawContext, Shader, Uniform, UniformBuffer};
 use glfw::{Context, OpenGlProfileHint};
 use render::{Instance, InstancedShapeManager};
 use glfw::WindowHint;
+use scene::Scene;
+use snake::Snake;
 
 use crate::math::Mat4;
 
@@ -15,45 +18,68 @@ mod gl;
 mod math;
 mod render;
 mod scene;
+mod snake;
 
 struct Game<'a> {
-    quads: InstancedShapeManager<'a>,
-    shader: Shader<'a>,
+    snake: Snake<'a>,
+    scene: Scene<'a>,
+
+    common_uniforms: UniformBuffer<'a>,
+    basic_shader: Shader<'a>,
+    instanced_shader: Shader<'a>,
 }
 
 impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
-        let shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
-            .expect("Failed to compile shader");
+        let common_uniforms = UniformBuffer::new(ctx);
+        let width = 50;
+        let height = 50;
+        let screen = Mat4::screen(width as f32, height as f32);
+        common_uniforms.set(unsafe { screen.as_bytes() }, gl::buffer_flags::DEFAULT);
+        common_uniforms.bind_buffer_base(0);
+
+        let basic_shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
+            .expect("Failed to compile basic shader");
+
+        let instanced_shader = Shader::from_file(ctx, Path::new("res/shaders/instanced"))
+            .expect("Failed to compile instanced shader");
 
         
-        let screen = Mat4::screen(3.0, 3.0);
-        let mut quads= InstancedShapeManager::quads(ctx, 32, screen);
-        quads.new_instance(Some(Instance {
-            col: (1.0, 0.0, 0.0).into(),
-            ..Default::default()
-        })).expect("Bad alloc of instance");
-        quads.new_instance(Some(Instance {
-            transform: Mat4::translate((1.0).into()),
-            col: (0.0, 1.0, 0.0).into(),
-            ..Default::default()
-        })).expect("Bad alloc of instance");
-        quads.new_instance(Some(Instance {
-            transform: Mat4::translate((2.0).into()),
-            col: (0.0, 0.0, 1.0).into(),
-            ..Default::default()
-        })).expect("Bad alloc of instance");
+        let scene = Scene::new(ctx, width, height);
+
+        let snake = Snake::new(ctx, (0.0).into());
+
         Self {
-            quads,
-            shader,
+            snake,
+            scene,
+
+            common_uniforms,
+            basic_shader,
+            instanced_shader,
         }
     }
 
     fn draw(&self) {
-        self.quads.draw(&self.shader);
+        self.snake.draw(&self.basic_shader);
+        self.scene.draw(&self.instanced_shader);
     }
 
-    fn tick(&mut self, dt: Duration) {}
+    fn tick(&mut self, dt: Duration) {
+        self.snake.tick(dt);
+    }
+
+    fn key_press(&mut self, key: glfw::Key, is_down: bool) {
+        use glfw::Key as K;
+        if is_down {
+            match key {
+                K::W => self.snake.handle_move(snake::Direction::Up),
+                K::A => self.snake.handle_move(snake::Direction::Left),
+                K::S => self.snake.handle_move(snake::Direction::Down),
+                K::D => self.snake.handle_move(snake::Direction::Right),
+                _ => (),
+            }
+        }
+    }
 }
 
 struct Window {
@@ -77,6 +103,7 @@ impl Window {
 
         // window setup
         window.set_resizable(false);
+        window.set_key_polling(true);
         let draw_context = DrawContext::create(&mut window);
 
         // set up opengl stuff here
@@ -104,7 +131,13 @@ impl Window {
         let mut last = Instant::now();
         while !self.window.should_close() {
             self.glfw.poll_events();
-            for _ in glfw::flush_messages(&self.event_pump) {}
+            for (_, e) in glfw::flush_messages(&self.event_pump) {
+                match e {
+                    glfw::WindowEvent::Key(key, _, glfw::Action::Press, _) => game.key_press(key, true),
+                    glfw::WindowEvent::Key(key, _, glfw::Action::Release, _) => game.key_press(key, false),
+                    _ => (),
+                }
+            }
 
             let now = Instant::now();
             let dt = now - last;
