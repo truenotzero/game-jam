@@ -1,15 +1,11 @@
 use std::{
-    fs::read_to_string,
-    mem::{offset_of, size_of, size_of_val},
-    ops::BitOr,
-    path::Path,
-    ptr::{null, null_mut},
+    f32::consts::E, ffi::{CStr, CString}, fs::read_to_string, mem::{offset_of, size_of, size_of_val}, ops::BitOr, path::Path, ptr::{null, null_mut}
 };
 
 use glfw::Context;
 
 use crate::{
-    common::{AsBytes, Error, Result}, math::{ Vec3, Vec4}, render::{Instance, Vertex}
+    common::{AsBytes, Error, Result}, math::{ Mat4, Vec3, Vec4}, render::{Instance, Vertex}
 };
 
 pub mod raw {
@@ -68,8 +64,12 @@ impl<'a> Vao<'a> {
         Self(GlObject(id, ctx))
     }
 
-    pub fn bind_attrib_src(&self, vertex_data: &ArrayBuffer, instance_data: &ArrayBuffer) {
+    pub fn enable(&self) {
         call!(BindVertexArray(self.0 .0));
+    }
+
+    pub fn bind_attrib_src(&self, vertex_data: &ArrayBuffer, instance_data: &ArrayBuffer) {
+        self.enable();
 
         // per-vertex attributes
         vertex_data.bind();
@@ -238,8 +238,18 @@ impl<'a> Shader<'a> {
         this.compile()
     }
 
-    pub fn bind(&self) {
+    pub fn enable(&self) {
         call!(UseProgram(self.0 .0));
+    }
+
+    pub fn locate_uniform(&self, name: &str) -> Option<raw::GLint> {
+        let name = CString::new(name).expect("Bad uniform name");
+        let location = call!(GetUniformLocation(self.0.0, name.as_ptr().cast()));
+        if location != -1 {
+            Some(location)
+        } else {
+            None
+        }
     }
 
     fn load(&self, filepath: &Path) -> Result<()> {
@@ -304,5 +314,16 @@ impl<'a> Shader<'a> {
             return Err(Error::ShaderCompilationError(log));
         }
         Ok(self)
+    }
+}
+
+pub trait Uniform {
+    fn uniform(&self, layout_location: raw::GLint);
+}
+
+impl Uniform for Mat4 {
+    fn uniform(&self, layout_location: raw::GLint) {
+        let ptr = self.xy[0].as_ptr();
+        call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }

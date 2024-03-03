@@ -28,19 +28,18 @@ impl<'a> Game<'a> {
 
         
         let screen = Mat4::screen(3.0, 3.0);
-        let mut quads= InstancedShapeManager::quads(ctx, 32, Mat4::identity());
+        let mut quads= InstancedShapeManager::quads(ctx, 32, screen);
         quads.new_instance(Some(Instance {
-            transform: screen,
             col: (1.0, 0.0, 0.0).into(),
             ..Default::default()
         })).expect("Bad alloc of instance");
         quads.new_instance(Some(Instance {
-            transform: screen * Mat4::translate((1.0).into()),
+            transform: Mat4::translate((1.0).into()),
             col: (0.0, 1.0, 0.0).into(),
             ..Default::default()
         })).expect("Bad alloc of instance");
         quads.new_instance(Some(Instance {
-            transform: screen * Mat4::translate((2.0).into()),
+            transform: Mat4::translate((2.0).into()),
             col: (0.0, 0.0, 1.0).into(),
             ..Default::default()
         })).expect("Bad alloc of instance");

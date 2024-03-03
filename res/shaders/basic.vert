@@ -12,6 +12,6 @@ layout (location = 6) in uint aFrame;
 out flat vec3 color;
 
 void main() {
-    gl_Position = aTransform * aPos;
+    gl_Position = uScreen * aTransform * aPos;
     color = aCol;
 }

@@ -141,10 +141,12 @@ impl From<f32> for Vec4 {
 
 // }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Mat4 {
     pub xy: [[f32; 4]; 4],
 }
+
+as_bytes!(Mat4);
 
 impl Default for Mat4 {
     fn default() -> Self {

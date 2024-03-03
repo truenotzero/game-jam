@@ -2,7 +2,7 @@ use std::{mem::{size_of, size_of_val}, ptr::null};
 
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
-    gl::{self, buffer_flags, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
+    gl::{self, buffer_flags, call, ArrayBuffer, DrawContext, IndexBuffer, Shader, Uniform, Vao},
     math::{ Mat4, Vec3},
 };
 
@@ -31,7 +31,7 @@ pub struct InstancedShapeManager<'a> {
     instance_data: ArrayBuffer<'a>,
 
     screen_matrix: Mat4,
-
+    num_indices: usize,
     active_instances: usize,
     max_instances: usize,
 }
@@ -42,6 +42,7 @@ impl<'a> InstancedShapeManager<'a> {
         vertex_data: ArrayBuffer<'a>,
         index_data: IndexBuffer<'a>,
         max_instances: usize,
+        num_indices: usize,
         screen_matrix: Mat4,
     ) -> Self {
         let vao = Vao::new(ctx);
@@ -59,7 +60,7 @@ impl<'a> InstancedShapeManager<'a> {
             instance_data,
 
             screen_matrix,
-
+            num_indices,
             active_instances: 0,
             max_instances,
         }
@@ -89,10 +90,11 @@ impl<'a> InstancedShapeManager<'a> {
             );
         }
 
+        let indices = [0,1,2,2,3,0];
         let index_data = IndexBuffer::new(ctx);
-        index_data.set([0, 1, 2, 2, 3, 0].as_ref(), gl::buffer_flags::DEFAULT);
+        index_data.set(&indices, gl::buffer_flags::DEFAULT);
 
-        Self::new(ctx, vertex_data, index_data, max_instances, screen_matrix)
+        Self::new(ctx, vertex_data, index_data, max_instances, indices.len(), screen_matrix)
     }
 
     pub fn new_instance(&mut self, data: Option<Instance>) -> Result<usize> {
@@ -115,11 +117,15 @@ impl<'a> InstancedShapeManager<'a> {
     }
 
     pub fn draw(&self, shader: &Shader) {
-        shader.bind();
+        shader.enable();
+        let screen_location = shader.locate_uniform("uScreen").expect("uScreen not found in shader");
+        self.screen_matrix.uniform(screen_location);
+
+        self.vao.enable();
         self.index_data.bind();
         gl::call!(DrawElementsInstanced(
             TRIANGLES,
-            6,
+            self.num_indices as _,
             UNSIGNED_BYTE,
             null(),
             self.active_instances as _,
