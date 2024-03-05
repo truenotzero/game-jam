@@ -1,16 +1,15 @@
-use std::{
-    ops::{Add, Mul}, path::Path, time::{Duration, Instant}
-};
+use std::
+    time::{Duration, Instant}
+;
 
 use common::AsBytes;
-use gl::{DrawContext, Shader, Uniform, UniformBuffer};
+use entity::EntityManager;
+use gl::{DrawContext, UniformBuffer};
 use glfw::WindowHint;
 use glfw::{Context, OpenGlProfileHint};
-use math::ease;
+use math::{ease, Vec3};
 use palette::Palette;
-use render::{Instance, InstancedShapeManager};
-use scene::Scene;
-use snake::Snake;
+use render::InstancedShapeManager;
 
 use crate::math::Mat4;
 
@@ -18,125 +17,56 @@ mod common;
 mod gl;
 mod math;
 mod render;
-mod scene;
-mod snake;
+mod entity;
 mod palette;
-
-struct Lerp {
-    accum: Duration,
-    duration: Duration,
-}
-
-impl Lerp {
-    fn new(duration: Duration) -> Self {
-        Self {
-            accum: duration,
-            duration,
-        }
-    }
-
-    fn reset(&mut self) {
-        self.accum = Duration::ZERO;
-    }
-
-    fn tick(&mut self, dt: Duration) -> bool {
-        self.accum += dt;
-
-        self.accum < self.duration
-    }
-
-
-    fn progress(&self) -> f32 {
-        self.accum.as_secs_f32() / self.duration.as_secs_f32()
-    }
-}
+mod time;
+mod archetype;
+mod world;
 
 struct Game<'a> {
-    snake: Snake<'a>,
-    scene: Scene<'a>,
-
-    lerp: Lerp,
-    normal: Mat4,
-    zoom: Mat4,
-    zoomed: bool,
-
+    man: EntityManager,
+    palette: Palette,
+    renderer: InstancedShapeManager<'a>,
     common_uniforms: UniformBuffer<'a>,
-    basic_shader: Shader<'a>,
-    instanced_shader: Shader<'a>,
 }
 
 impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
-        let palette = palette::aperture();
-
         let width = 50;
         let height = 50;
-        let zoom = Mat4::screen(width as f32 / 4.0, height as f32 / 4.0);
         let normal = Mat4::screen(width as f32, height as f32);
+
         let common_uniforms = UniformBuffer::new(ctx);
         common_uniforms.bind_buffer_base(0);
         common_uniforms.set(unsafe { normal.as_bytes() }, gl::buffer_flags::DYNAMIC_STORAGE);
 
-        let basic_shader = Shader::from_file(ctx, Path::new("res/shaders/basic"))
-            .expect("Failed to compile basic shader");
+        let renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
 
-        let instanced_shader = Shader::from_file(ctx, Path::new("res/shaders/instanced"))
-            .expect("Failed to compile instanced shader");
+        let mut man = EntityManager::default();
 
-        let scene = Scene::new(ctx, palette, width, height);
-
-        let snake = Snake::new(ctx, (0.0).into(), palette);
+        archetype::wall::new(&mut man, Vec3::default());
 
         Self {
-            snake,
-            scene,
-
-            lerp: Lerp::new(Duration::from_millis(500)),
-            normal,
-            zoom,
-            zoomed: true,
-
+            man,
+            palette: palette::aperture(),
+            renderer,
             common_uniforms,
-            basic_shader,
-            instanced_shader,
         }
     }
 
-    fn draw(&self) {
-        self.snake.draw(&self.basic_shader);
-        self.scene.draw(&self.instanced_shader);
+    fn draw(&mut self) {
+        self.man.draw(&mut self.renderer, self.palette);
+        self.renderer.draw();
     }
 
     fn tick(&mut self, dt: Duration) {
-        if self.lerp.tick(dt) {
-            // lerp active 
-            let (to, from) = if !self.zoomed {
-                (self.normal, self.zoom)
-            } else {
-                (self.zoom, self.normal)
-            };
-
-            let p = ease::out_back(self.lerp.progress());
-            let screen = math::lerp(to, from, p);
-            self.common_uniforms.update(0, unsafe { screen.as_bytes() })
-        }
-
-
-        self.snake.tick(dt);
+        self.man.tick(dt);
     }
 
     fn key_press(&mut self, key: glfw::Key, is_down: bool) {
         use glfw::Key as K;
         if is_down {
             match key {
-                K::W => self.snake.handle_move(snake::Direction::Up),
-                K::A => self.snake.handle_move(snake::Direction::Left),
-                K::S => self.snake.handle_move(snake::Direction::Down),
-                K::D => self.snake.handle_move(snake::Direction::Right),
-                K::Space => {
-                    self.zoomed = !self.zoomed;
-                    self.lerp.reset();
-                },
                 _ => (),
             }
         }
@@ -174,7 +104,7 @@ impl Window {
         gl::call!(Enable(gl::raw::BLEND));
         gl::call!(BlendFunc(gl::raw::SRC_ALPHA, gl::raw::ONE_MINUS_SRC_ALPHA));
         // enable gamma correction
-        gl::call!(Enable(gl::raw::FRAMEBUFFER_SRGB));
+        // gl::call!(Enable(gl::raw::FRAMEBUFFER_SRGB));
 
         Self {
             glfw,

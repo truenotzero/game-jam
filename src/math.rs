@@ -231,10 +231,11 @@ impl Mat4 {
         todo!()
     }
 
-    pub fn translate(translate: Vec2) -> Self {
+    pub fn translate(translate: Vec3) -> Self {
         let mut ret = Self::identity();
         ret.xy[3][0] = translate.x;
         ret.xy[3][1] = translate.y;
+        ret.xy[3][2] = translate.z;
         ret
     }
 
@@ -301,6 +302,25 @@ impl Mul<Mat4> for f32 {
     }
 }
 
+impl Mul<Vec4> for Mat4 {
+    type Output = Vec4;
+
+    fn mul(self, rhs: Vec4) -> Self::Output {
+        let rhs: [f32; 4] = unsafe { std::mem::transmute(rhs) };
+        let mut ret = [0f32;4];
+
+        for y in 0..4 {
+            let mut sum = 0.0;
+            for e in 0..4 {
+                sum += self.xy[e][y] * rhs[e];
+            }
+            ret[y] = sum;
+        }
+        
+        unsafe { std::mem::transmute(ret) }
+    }
+}
+
 impl Mul for Mat4 {
     type Output = Self;
 
@@ -338,7 +358,73 @@ pub fn lerp<T>(lhs: T, rhs: T, p: f32) -> <<f32 as Mul<T>>::Output as Add>::Outp
     (1.0 - p) * lhs + p * rhs
 }
 
+/// Make animations pleasant
+/// https://easings.net/#
 pub mod ease {
+    use super::Vec2;
+
+
+    /// cubic bezier defined by (0,0), p1, p2, (1,1)
+    pub struct UnitBezier {
+        p1: Vec2,
+        p2: Vec2,
+        approximations: Vec<Vec2>,
+    }
+
+    impl UnitBezier {
+        pub fn new(p1: Vec2, p2: Vec2, num_approximations: usize) -> Self {
+            let step = 1.0 / num_approximations as f32;
+            let mut approximations = Vec::with_capacity(num_approximations);
+            for i in 0..num_approximations {
+                let t = step * i as f32;
+                let b = Self::t(p1, p2, t);
+                approximations.push(b);
+            }
+
+            Self {
+                p1,
+                p2,
+                approximations,
+            }
+        }
+
+        /// Calculate B(t) = (x,y)
+        fn t(p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
+            let p3 = Vec2::diagonal(1.0);
+
+            (  3.0 * t * t * t - 6.0 * t * t + 3.0 * t ) * p1 +
+            ( -3.0 * t * t * t + 3.0 * t * t )           * p2 + 
+            (        t * t * t )                         * p3
+        }
+
+
+        /// Given a point B(t) = (x,y)
+        /// approximate the y value based on x
+        pub fn x(&self, x: f32) -> f32 {
+            let mut low = Vec2::default();
+            for v in &self.approximations {
+                if v.x < x {
+                    low = *v;
+                } else {
+                    break;
+                }
+            }
+
+            let mut high = Vec2::default();
+            for v in &self.approximations {
+                if v.x > x {
+                    high = *v;
+                } else {
+                    break;
+                }
+            }
+            
+            // normalized x
+            let n = (x - low.x) / (high.x - low.x);
+            super::lerp(low.y, high.y, n)
+        }
+    }
+
     pub fn out_quart(p: f32) -> f32 {
         1.0 - (1.0 - p).powf(4.0)
     }

@@ -1,6 +1,5 @@
 use std::{
-    mem::{size_of, size_of_val},
-    ptr::null,
+    mem::{size_of, size_of_val}, path::Path, ptr::null
 };
 
 use crate::{
@@ -21,7 +20,6 @@ pub struct Vertex {
 pub struct Instance {
     pub transform: Mat4, // shape transform
     pub col: Vec3,       // shape color
-    pub frame: u8,       // shape animation frame for SMOOTH ANIMATIONSSSSSSSSSSSSS
 }
 
 as_bytes!(Vertex);
@@ -32,9 +30,10 @@ pub struct InstancedShapeManager<'a> {
     index_data: IndexBuffer<'a>,
     _vertex_data: ArrayBuffer<'a>,
     instance_data: ArrayBuffer<'a>,
+    shader: Shader<'a>,
 
     num_indices: usize,
-    active_instances: usize,
+    num_instances: usize,
     max_instances: usize,
 }
 
@@ -43,8 +42,8 @@ impl<'a> InstancedShapeManager<'a> {
         ctx: &'a DrawContext,
         vertex_data: ArrayBuffer<'a>,
         index_data: IndexBuffer<'a>,
-        max_instances: usize,
         num_indices: usize,
+        max_instances: usize,
     ) -> Self {
         let vao = Vao::new(ctx);
 
@@ -61,9 +60,10 @@ impl<'a> InstancedShapeManager<'a> {
             index_data,
             _vertex_data: vertex_data,
             instance_data,
+            shader: Shader::from_file(ctx, Path::new("res/shaders/instanced")).unwrap(),
 
             num_indices,
-            active_instances: 0,
+            num_instances: 0,
             max_instances,
         }
     }
@@ -81,48 +81,32 @@ impl<'a> InstancedShapeManager<'a> {
         Self::new(ctx, vertex_data, index_data, max_instances, indices.len())
     }
 
-    /// enable instances for use without initializing
-    pub unsafe fn enable_instances(&mut self, num_instances: usize) -> Result<()> {
-        if num_instances > self.max_instances {
-            return Err(Error::InstanceLimit);
+    /// Returns none if max instances reached
+    pub fn push_instance(&mut self, instance: Instance) {
+        if self.num_instances == self.max_instances { 
+            panic!("Instance limit reached");
         }
 
-        self.active_instances = num_instances;
-        Ok(())
+        let offset = size_of_val(&instance) * self.num_instances;
+        self.instance_data.update(offset, unsafe { instance.as_bytes() });
+
+        self.num_instances += 1;
     }
 
-    pub fn new_instance(&mut self, data: Option<Instance>) -> Result<usize> {
-        let instance = data.unwrap_or_default();
-        if self.active_instances == self.max_instances {
-            return Err(Error::InstanceLimit);
-        }
+    pub fn draw(&mut self) {
+        self.vao.apply();
+        self.shader.apply();
+        self.index_data.apply();
 
-        let id = self.active_instances;
-        self.active_instances += 1;
-
-        self.set_instance(id, instance);
-
-        Ok(id)
-    }
-
-    pub fn set_instance(&self, id: usize, data: Instance) {
-        let data_bytes = unsafe { data.as_bytes() };
-        self.instance_data
-            .update(id * size_of_val(&data), data_bytes);
-    }
-
-    pub fn draw(&self, shader: &Shader) {
-        shader.enable();
-
-        self.vao.enable();
-        self.index_data.bind();
         gl::call!(DrawElementsInstanced(
             TRIANGLES,
             self.num_indices as _,
             UNSIGNED_BYTE,
             null(),
-            self.active_instances as _,
+            self.num_instances as _,
         ));
+
+        self.num_instances = 0;
     }
 }
 

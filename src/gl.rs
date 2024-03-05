@@ -72,15 +72,15 @@ impl<'a> Vao<'a> {
         Self(GlObject(id, ctx))
     }
 
-    pub fn enable(&self) {
+    pub fn apply(&self) {
         call!(BindVertexArray(self.0 .0));
     }
 
     pub fn bind_vertex_attribs(&self, vertex_data: &ArrayBuffer) {
-        self.enable();
+        self.apply();
 
         // per-vertex attributes
-        vertex_data.bind();
+        vertex_data.apply();
         // position
         call!(EnableVertexAttribArray(0));
         call!(VertexAttribPointer(
@@ -97,7 +97,7 @@ impl<'a> Vao<'a> {
         self.bind_vertex_attribs(vertex_data);
 
         // per-instance attributes
-        instance_data.bind();
+        instance_data.apply();
         // shape transform, mat3 = 3 vecs = takes up 3 indices (1,2,3)
         call!(EnableVertexAttribArray(1));
         let mat_offset = offset_of!(Instance, transform);
@@ -155,18 +155,6 @@ impl<'a> Vao<'a> {
             offset_of!(Instance, col) as _,
         ));
         call!(VertexAttribDivisor(5, 1));
-
-        // animation frame
-        call!(EnableVertexAttribArray(6));
-        call!(VertexAttribPointer(
-            6,
-            1,
-            raw::UNSIGNED_BYTE,
-            raw::FALSE,
-            size_of::<Instance>() as _,
-            offset_of!(Instance, frame) as _,
-        ));
-        call!(VertexAttribDivisor(6, 1));
     }
 }
 
@@ -209,7 +197,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
         Self(GlObject(id, ctx))
     }
 
-    pub fn bind(&self) {
+    pub fn apply(&self) {
         call!(BindBuffer(T, self.0 .0));
     }
 
@@ -267,7 +255,7 @@ impl<'a> Shader<'a> {
         this.compile()
     }
 
-    pub fn enable(&self) {
+    pub fn apply(&self) {
         call!(UseProgram(self.0 .0));
     }
 
