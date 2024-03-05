@@ -42,8 +42,8 @@ impl<'a> InstancedShapeManager<'a> {
         ctx: &'a DrawContext,
         vertex_data: ArrayBuffer<'a>,
         index_data: IndexBuffer<'a>,
-        num_indices: usize,
         max_instances: usize,
+        num_indices: usize,
     ) -> Self {
         let vao = Vao::new(ctx);
 
@@ -73,7 +73,7 @@ impl<'a> InstancedShapeManager<'a> {
         let index_data = IndexBuffer::new(ctx);
 
         let (vertices, indices) =
-            quad_vertex_helper(0.9, [Vec4::new(0.0, 0.0, 1.0, 1.0)].into_iter());
+            quad_vertex_helper(0.0, [Vec4::new(0.0, 0.0, 1.0, 1.0)].into_iter());
 
         vertex_data.set(unsafe { vertices.as_bytes() }, gl::buffer_flags::DEFAULT);
         index_data.set(&indices, gl::buffer_flags::DEFAULT);

@@ -25,16 +25,18 @@ pub mod wall {
 }
 
 pub mod background {
-    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView, Position}, math::{Mat4, Vec2}, palette::Palette, render::{Instance, InstancedShapeManager}};
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView, Position}, math::{Mat4, Vec2, Vec3}, palette::Palette, render::{Instance, InstancedShapeManager}};
 
     pub fn new(man: &mut EntityManager, position: Position, dimensions: Vec2) -> EntityId {
-        let id = man.spawn(Entities::Wall, &[
+        let id = man.spawn(Entities::Background, &[
             Components::Position,
             Components::Collider,
+            Components::Scale,
         ]);
 
-        let mut wall = man.view(id).unwrap();
-        wall.set_position(position);
+        let mut bg = man.view(id).unwrap();
+        bg.set_position(position);
+        bg.set_scale(dimensions);
 
         id
     }
@@ -45,7 +47,7 @@ pub mod background {
 
         renderer.push_instance(Instance {
             transform: Mat4::scale(scale) * Mat4::translate(pos),
-            col: palette.wall,
+            col: palette.background,
         });
     }
 }

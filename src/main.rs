@@ -24,6 +24,7 @@ mod archetype;
 mod world;
 
 struct Game<'a> {
+    room: world::Room,
     man: EntityManager,
     palette: Palette,
     renderer: InstancedShapeManager<'a>,
@@ -44,9 +45,9 @@ impl<'a> Game<'a> {
 
         let mut man = EntityManager::default();
 
-        archetype::wall::new(&mut man, Vec3::default());
 
         Self {
+            room: world::Room::main(&mut man),
             man,
             palette: palette::aperture(),
             renderer,

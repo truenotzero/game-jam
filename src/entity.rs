@@ -24,6 +24,7 @@ impl Entities {
 
         match self {
             Self::Wall => wall::draw(entity, renderer, palette),
+            Self::Background => background::draw(entity, renderer, palette),
             _ => (),
         }
     }
