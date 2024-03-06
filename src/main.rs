@@ -6,11 +6,12 @@ use entity::EntityManager;
 use gl::{DrawContext, UniformBuffer};
 use glfw::{Context, OpenGlProfileHint};
 use glfw::{Key, WindowHint};
-use math::{ease, Vec3};
+use math::ease::UnitBezier;
+use math::{ease, lerp, Vec2, Vec3};
 use palette::Palette;
 use render::InstancedShapeManager;
 
-use crate::math::Mat4;
+use crate::math::{Mat4, Vec4};
 
 mod archetype;
 mod common;
@@ -24,6 +25,12 @@ mod time;
 mod world;
 
 struct Game<'a> {
+    lerping: bool,
+    accum: Duration,
+    bezier: UnitBezier,
+    zoomout_view: Mat4,
+    starting_view: Mat4,
+
     room: world::Room,
     man: EntityManager,
     keystroke_tx: Sender<Key>,
@@ -36,14 +43,8 @@ impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
         let width = 50;
         let height = 50;
-        let normal = Mat4::screen(width as f32, height as f32);
+        let normal = Mat4::screen(Vec2::default(), width as f32, height as f32);
 
-        let common_uniforms = UniformBuffer::new(ctx);
-        common_uniforms.bind_buffer_base(0);
-        common_uniforms.set(
-            unsafe { normal.as_bytes() },
-            gl::buffer_flags::DYNAMIC_STORAGE,
-        );
 
         let renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
 
@@ -51,9 +52,24 @@ impl<'a> Game<'a> {
         let mut man = EntityManager::new(keystroke_rx);
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
+        let room= world::Room::main(&mut man);
+        let starting_view = room.view();
+
+        let common_uniforms = UniformBuffer::new(ctx);
+        common_uniforms.bind_buffer_base(0);
+        common_uniforms.set(
+            unsafe { starting_view.as_bytes() },
+            gl::buffer_flags::DYNAMIC_STORAGE,
+        );
 
         Self {
-            room: world::Room::main(&mut man),
+            lerping: false,
+            accum: Duration::ZERO,
+            bezier: UnitBezier::new(0.95, 0.1, 0.1, 0.95, 1024),
+            starting_view: room.view(),
+            zoomout_view: normal,
+        
+            room,
             man,
             keystroke_tx,
             palette: palette::aperture(),
@@ -68,6 +84,22 @@ impl<'a> Game<'a> {
     }
 
     fn tick(&mut self, dt: Duration) {
+        let max = Duration::from_millis(1000);
+        if self.lerping {
+            if self.accum < max {
+                let pct = self.accum.as_secs_f32() / max.as_secs_f32();
+                let p = self.bezier.apply(pct);
+                println!("starting view\n{}", self.starting_view);
+                println!("zoomout view\n{}", self.zoomout_view);
+                let lerped_matrix = lerp(self.starting_view, self.zoomout_view, p);
+                self.common_uniforms.update(0, unsafe { lerped_matrix.as_bytes() });
+                self.accum += dt;
+            } else {
+                self.lerping = false;
+                self.accum = Duration::ZERO;
+            }
+        }
+
         self.man.tick(dt);
     }
 
@@ -75,6 +107,11 @@ impl<'a> Game<'a> {
         if !is_down {
             return;
         }
+
+        if key == Key::Space {
+            self.lerping = true;
+        }
+
         let _ = self.keystroke_tx.send(key);
     }
 }
@@ -156,6 +193,13 @@ impl Window {
 
 fn main() {
     println!("Hello, world!");
+
+    let v = Vec4::position(Vec3::default());
+    let t = Mat4::translate(Vec3::new(1.0, 1.0, 1.0));
+    println!("t matrix\n{}", t);
+
+    let one = t * v;
+    println!();
 
     let window = Window::new();
     window.run()

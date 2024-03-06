@@ -1,3 +1,4 @@
+use core::fmt;
 use std::ops::{Add, Mul, Sub};
 
 use crate::common::as_bytes;
@@ -139,6 +140,16 @@ impl From<(Vec2, f32)> for Vec3 {
     }
 }
 
+impl From<Vec4> for Vec3 {
+    fn from(value: Vec4) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            z: value.z,
+        }
+    }
+}
+
 impl Add for Vec3 {
     type Output = Self;
 
@@ -169,6 +180,24 @@ impl Vec4 {
 
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n, n, n)
+    }
+    
+    pub fn direction(direction: Vec2) -> Self {
+        Self {
+            x: direction.x,
+            y: direction.y,
+            z: 0.0,
+            w: 0.0,
+        }
+    }
+
+    pub fn position(position: Vec3) -> Self {
+        Self {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+            w: 1.0,
+        }
     }
 }
 
@@ -288,24 +317,12 @@ impl Mat4 {
         Self::scale((-1.0, 1.0).into())
     }
 
-    // screen projection matrix with each tile's 0,0 being centered
-    pub fn screen_local_center(width: f32, height: f32) -> Self {
-        let l = -0.5;
-        let r = width - 0.5;
-        let t = -0.5;
-        let b = height - 0.5;
-        let f = -1.0;
-        let n = 1.0;
-
-        Self::ortho(r, l, t, b, n, f)
-    }
-
     // screen projection matrix with each tile's 0,0 being offset
-    pub fn screen(width: f32, height: f32) -> Self {
-        let l = 0.0;
-        let r = width;
-        let t = 0.0;
-        let b = height;
+    pub fn screen(position: Vec2, width: f32, height: f32) -> Self {
+        let l = position.x - 0.5 * width;
+        let r = position.x + 0.5 * width;
+        let t = position.y - 0.5 * height;
+        let b = position.y + 0.5 * height;
         let f = -1.0;
         let n = 1.0;
 
@@ -321,6 +338,20 @@ impl Mat4 {
         ret.xy[3][1] = (b + t) / (b - t);
         ret.xy[3][2] = (n + f) / (n - f);
         ret
+    }
+}
+
+impl fmt::Display for Mat4 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for y in 0..4 {
+            write!(f, "[ ")?;
+            for x in 0..4 {
+                write!(f, "{:.2} ", self.xy[x][y])?;
+            }
+            writeln!(f, "]")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -341,9 +372,9 @@ impl Mul<Vec4> for Mat4 {
     type Output = Vec4;
 
     fn mul(self, rhs: Vec4) -> Self::Output {
-        let rhs: [f32; 4] = unsafe { std::mem::transmute(rhs) };
-        let mut ret = [0f32; 4];
-
+        let rhs = [rhs.x, rhs.y, rhs.z, rhs.w];
+        let mut ret = [0.0; 4];
+        
         for y in 0..4 {
             let mut sum = 0.0;
             for e in 0..4 {
@@ -352,7 +383,7 @@ impl Mul<Vec4> for Mat4 {
             ret[y] = sum;
         }
 
-        unsafe { std::mem::transmute(ret) }
+        Vec4::new(ret[0], ret[1], ret[2], ret[3])
     }
 }
 
@@ -409,7 +440,10 @@ pub mod ease {
     }
 
     impl UnitBezier {
-        pub fn new(p1: Vec2, p2: Vec2, num_approximations: usize) -> Self {
+        pub fn new(p1x: f32, p1y: f32, p2x: f32, p2y: f32, num_approximations: usize) -> Self {
+            let p1 = Vec2::new(p1x, p1y);
+            let p2 = Vec2::new(p2x, p2y);
+
             let step = 1.0 / num_approximations as f32;
             let mut approximations = Vec::with_capacity(num_approximations);
             for i in 0..num_approximations {
@@ -436,7 +470,7 @@ pub mod ease {
 
         /// Given a point B(t) = (x,y)
         /// approximate the y value based on x
-        pub fn x(&self, x: f32) -> f32 {
+        pub fn apply(&self, x: f32) -> f32 {
             let mut low = Vec2::default();
             for v in &self.approximations {
                 if v.x < x {

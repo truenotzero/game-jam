@@ -58,7 +58,7 @@ pub mod background {
         let scale = entity.get_scale();
 
         renderer.push_instance(Instance {
-            transform: Mat4::scale(scale) * Mat4::translate(pos),
+            transform: Mat4::translate(pos) * Mat4::scale(scale),
             col: palette.background,
         });
     }
@@ -94,7 +94,7 @@ pub mod snake {
         );
 
         let mut snake = man.view(id).unwrap();
-        snake.set_position(Vec3::new(7.0, 7.0, 0.0));
+        snake.set_position(Vec3::new(0.0, 0.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
 
         id
@@ -123,8 +123,6 @@ pub mod snake {
         if !entity.access_timer(|t| t.tick(dt)) {
             return;
         }
-
-        println!("a body is alive");
 
         let life = entity.get_self_destruct();
         if life <= 1 {
@@ -200,7 +198,7 @@ pub mod fruit {
     use rand::{thread_rng, Rng};
 
     use crate::{
-        entity::{Components, Entities, EntityId, EntityManager, EntityView},
+        entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec3},
         palette::Palette,
         render::{Instance, InstancedShapeManager},
@@ -217,8 +215,8 @@ pub mod fruit {
         );
 
         let mut rng = thread_rng();
-        let x = rng.gen_range(3..10) as f32;
-        let y = rng.gen_range(3..10) as f32;
+        let x = rng.gen_range(-10..10) as f32;
+        let y = rng.gen_range(-10..10) as f32;
 
         let mut fruit = man.view(id).unwrap();
         fruit.set_position(Vec3::new(x, y, 0.0));
@@ -229,8 +227,22 @@ pub mod fruit {
     pub fn draw(entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
         let pos = entity.get_position();
 
+        let transform = if entity.which() == Entities::SnakeHead {
+            // head
+            match entity.get_direction() {
+                Direction::None => todo!(),
+                Direction::Up => todo!(),
+                Direction::Down => todo!(),
+                Direction::Left => todo!(),
+                Direction::Right => todo!(),
+            }
+        } else {
+            // normal body part
+            Mat4::translate(pos)
+        };
+
         renderer.push_instance(Instance {
-            transform: Mat4::translate(pos),
+            transform,
             col: palette.fruit,
         });
     }
