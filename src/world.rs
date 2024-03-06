@@ -1,4 +1,10 @@
-use crate::{archetype, entity::{EntityId, EntityManager, Position, Scale}, gl::raw::BACK, math::{Mat4, Vec2, Vec4}, world};
+use crate::{
+    archetype,
+    entity::{EntityId, EntityManager, Position, Scale},
+    gl::raw::BACK,
+    math::{Mat4, Vec2, Vec4},
+    world,
+};
 
 const BACKGROUND_DEPTH: f32 = 0.9;
 const WALL_DEPTH: f32 = 0.8;
@@ -21,7 +27,9 @@ impl Room {
         let height = dimensions.y as usize;
         for y in 0..height {
             for x in 0..width {
-                if !(y == 0 || y == height - 1 || x == 0 || x == width - 1) { continue }
+                if !(y == 0 || y == height - 1 || x == 0 || x == width - 1) {
+                    continue;
+                }
 
                 let room_pos = Vec4::new(x as f32, y as f32, 0.0, 0.0);
                 let world_pos4 = room_to_world * room_pos;
@@ -35,9 +43,7 @@ impl Room {
         // make connectors
         // TODO
 
-        Self {
-            parts,
-        }
+        Self { parts }
     }
 
     pub fn main(man: &mut EntityManager) -> Self {

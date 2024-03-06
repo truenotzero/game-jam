@@ -1,31 +1,32 @@
-use std::
-    time::{Duration, Instant}
-;
+use std::sync::mpsc::{self, Sender};
+use std::time::{Duration, Instant};
 
 use common::AsBytes;
 use entity::EntityManager;
 use gl::{DrawContext, UniformBuffer};
-use glfw::WindowHint;
 use glfw::{Context, OpenGlProfileHint};
+use glfw::{Key, WindowHint};
 use math::{ease, Vec3};
 use palette::Palette;
 use render::InstancedShapeManager;
 
 use crate::math::Mat4;
 
+mod archetype;
 mod common;
+mod entity;
 mod gl;
 mod math;
-mod render;
-mod entity;
+mod noise;
 mod palette;
+mod render;
 mod time;
-mod archetype;
 mod world;
 
 struct Game<'a> {
     room: world::Room,
     man: EntityManager,
+    keystroke_tx: Sender<Key>,
     palette: Palette,
     renderer: InstancedShapeManager<'a>,
     common_uniforms: UniformBuffer<'a>,
@@ -39,16 +40,22 @@ impl<'a> Game<'a> {
 
         let common_uniforms = UniformBuffer::new(ctx);
         common_uniforms.bind_buffer_base(0);
-        common_uniforms.set(unsafe { normal.as_bytes() }, gl::buffer_flags::DYNAMIC_STORAGE);
+        common_uniforms.set(
+            unsafe { normal.as_bytes() },
+            gl::buffer_flags::DYNAMIC_STORAGE,
+        );
 
         let renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
 
-        let mut man = EntityManager::default();
-
+        let (keystroke_tx, keystroke_rx) = mpsc::channel();
+        let mut man = EntityManager::new(keystroke_rx);
+        archetype::fruit::new(&mut man);
+        archetype::snake::new(&mut man);
 
         Self {
             room: world::Room::main(&mut man),
             man,
+            keystroke_tx,
             palette: palette::aperture(),
             renderer,
             common_uniforms,
@@ -64,13 +71,11 @@ impl<'a> Game<'a> {
         self.man.tick(dt);
     }
 
-    fn key_press(&mut self, key: glfw::Key, is_down: bool) {
-        use glfw::Key as K;
-        if is_down {
-            match key {
-                _ => (),
-            }
+    fn key_press(&mut self, key: Key, is_down: bool) {
+        if !is_down {
+            return;
         }
+        let _ = self.keystroke_tx.send(key);
     }
 }
 

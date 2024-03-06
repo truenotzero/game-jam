@@ -1,5 +1,7 @@
 use std::{
-    mem::{size_of, size_of_val}, path::Path, ptr::null
+    mem::{size_of, size_of_val},
+    path::Path,
+    ptr::null,
 };
 
 use crate::{
@@ -83,12 +85,13 @@ impl<'a> InstancedShapeManager<'a> {
 
     /// Returns none if max instances reached
     pub fn push_instance(&mut self, instance: Instance) {
-        if self.num_instances == self.max_instances { 
+        if self.num_instances == self.max_instances {
             panic!("Instance limit reached");
         }
 
         let offset = size_of_val(&instance) * self.num_instances;
-        self.instance_data.update(offset, unsafe { instance.as_bytes() });
+        self.instance_data
+            .update(offset, unsafe { instance.as_bytes() });
 
         self.num_instances += 1;
     }

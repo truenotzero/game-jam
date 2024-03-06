@@ -76,6 +76,15 @@ impl From<f32> for Vec2 {
     }
 }
 
+impl From<Vec3> for Vec2 {
+    fn from(value: Vec3) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
 pub struct Vec3 {
@@ -102,6 +111,10 @@ impl Vec3 {
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n, n)
     }
+
+    pub fn eq(self, rhs: Self) -> bool {
+        f32_eq(self.x, rhs.x) && f32_eq(self.y, rhs.y) && f32_eq(self.z, rhs.z)
+    }
 }
 
 impl From<(f32, f32, f32)> for Vec3 {
@@ -113,6 +126,28 @@ impl From<(f32, f32, f32)> for Vec3 {
 impl From<f32> for Vec3 {
     fn from(value: f32) -> Self {
         Self::diagonal(value)
+    }
+}
+
+impl From<(Vec2, f32)> for Vec3 {
+    fn from(value: (Vec2, f32)) -> Self {
+        Self {
+            x: value.0.x,
+            y: value.0.y,
+            z: value.1,
+        }
+    }
+}
+
+impl Add for Vec3 {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
+
+        self
     }
 }
 
@@ -291,7 +326,7 @@ impl Mat4 {
 
 impl Mul<Mat4> for f32 {
     type Output = Mat4;
-    
+
     fn mul(self, mut rhs: Mat4) -> Self::Output {
         for y in 0..4 {
             for x in 0..4 {
@@ -307,7 +342,7 @@ impl Mul<Vec4> for Mat4 {
 
     fn mul(self, rhs: Vec4) -> Self::Output {
         let rhs: [f32; 4] = unsafe { std::mem::transmute(rhs) };
-        let mut ret = [0f32;4];
+        let mut ret = [0f32; 4];
 
         for y in 0..4 {
             let mut sum = 0.0;
@@ -316,7 +351,7 @@ impl Mul<Vec4> for Mat4 {
             }
             ret[y] = sum;
         }
-        
+
         unsafe { std::mem::transmute(ret) }
     }
 }
@@ -353,8 +388,11 @@ impl Add for Mat4 {
     }
 }
 
-
-pub fn lerp<T>(lhs: T, rhs: T, p: f32) -> <<f32 as Mul<T>>::Output as Add>::Output where f32: Mul<T>, <f32 as Mul<T>>::Output: Add {
+pub fn lerp<T>(lhs: T, rhs: T, p: f32) -> <<f32 as Mul<T>>::Output as Add>::Output
+where
+    f32: Mul<T>,
+    <f32 as Mul<T>>::Output: Add,
+{
     (1.0 - p) * lhs + p * rhs
 }
 
@@ -362,7 +400,6 @@ pub fn lerp<T>(lhs: T, rhs: T, p: f32) -> <<f32 as Mul<T>>::Output as Add>::Outp
 /// https://easings.net/#
 pub mod ease {
     use super::Vec2;
-
 
     /// cubic bezier defined by (0,0), p1, p2, (1,1)
     pub struct UnitBezier {
@@ -392,11 +429,10 @@ pub mod ease {
         fn t(p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
             let p3 = Vec2::diagonal(1.0);
 
-            (  3.0 * t * t * t - 6.0 * t * t + 3.0 * t ) * p1 +
-            ( -3.0 * t * t * t + 3.0 * t * t )           * p2 + 
-            (        t * t * t )                         * p3
+            (3.0 * t * t * t - 6.0 * t * t + 3.0 * t) * p1
+                + (-3.0 * t * t * t + 3.0 * t * t) * p2
+                + (t * t * t) * p3
         }
-
 
         /// Given a point B(t) = (x,y)
         /// approximate the y value based on x
@@ -418,7 +454,7 @@ pub mod ease {
                     break;
                 }
             }
-            
+
             // normalized x
             let n = (x - low.x) / (high.x - low.x);
             super::lerp(low.y, high.y, n)

@@ -32,8 +32,13 @@ impl Palette {
 
 pub fn aperture() -> Palette {
     let offwhite = Vec3::rgb(0xEA, 0xDF, 0xB4);
-    let light_blue  = Vec3::rgb(0x9B, 0xB0, 0xC1);
-    let dark_blue =  Vec3::rgb(0x51, 0x82, 0x9B);
+    let light_blue = Vec3::rgb(0x9B, 0xB0, 0xC1);
+    let dark_blue = Vec3::rgb(0x51, 0x82, 0x9B);
     let orange = Vec3::rgb(0xF6, 0x99, 0x5C);
-    Palette { snake: offwhite, wall: light_blue, background: dark_blue, fruit: orange }
+    Palette {
+        snake: offwhite,
+        wall: light_blue,
+        background: dark_blue,
+        fruit: orange,
+    }
 }
