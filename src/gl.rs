@@ -252,6 +252,11 @@ impl<'a> Shader<'a> {
         path.set_extension("frag");
         this.load(&path)?;
 
+        path.set_extension("geom");
+        if path.exists() {
+            this.load(&path)?;
+        }
+
         this.compile()
     }
 
@@ -277,6 +282,7 @@ impl<'a> Shader<'a> {
         let shader_type = match extension {
             "vert" => raw::VERTEX_SHADER,
             "frag" => raw::FRAGMENT_SHADER,
+            "geom" => raw::GEOMETRY_SHADER,
             _ => return Err(Error::BadShaderType),
         };
 
@@ -340,7 +346,7 @@ pub trait Uniform {
 
 impl Uniform for Mat4 {
     fn uniform(&self, layout_location: raw::GLint) {
-        let ptr = self.xy[0].as_ptr();
+        let ptr = &self[0][0];
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
@@ -348,5 +354,11 @@ impl Uniform for Mat4 {
 impl Uniform for Vec3 {
     fn uniform(&self, layout_location: raw::GLint) {
         call!(Uniform3f(layout_location, self.x, self.y, self.z))
+    }
+}
+
+impl Uniform for f32 {
+    fn uniform(&self, layout_location: raw::GLint) {
+        call!(Uniform1f(layout_location, *self))
     }
 }

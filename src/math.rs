@@ -1,7 +1,7 @@
 use core::fmt;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Index, IndexMut, Mul, Sub};
 
-use crate::common::as_bytes;
+use crate::common::{as_bytes, Error, Result};
 
 fn f32_eq_tolerance(lhs: f32, rhs: f32, tolerance: f32) -> bool {
     let delta = lhs - rhs;
@@ -12,8 +12,17 @@ pub fn f32_eq(lhs: f32, rhs: f32) -> bool {
     f32_eq_tolerance(lhs, rhs, 0.01)
 }
 
+// https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
+fn srgb_to_linear(c: f32) -> f32 {
+    if c < 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
 #[repr(C)]
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -32,6 +41,10 @@ impl Vec2 {
 
     pub fn eq(self, rhs: Self) -> bool {
         f32_eq(self.x, rhs.x) && f32_eq(self.y, rhs.y)
+    }
+
+    pub fn abs(self) -> Self {
+        Self::new(self.x.abs(), self.y.abs())
     }
 }
 
@@ -109,12 +122,23 @@ impl Vec3 {
         Self::new(Self::norm(r), Self::norm(g), Self::norm(b))
     }
 
+    pub fn hexcode(hex: &str) -> Result<Self> {
+        let r = u8::from_str_radix(&hex[0..2], 0x10).map_err(|_| Error::ParseError)?;
+        let g = u8::from_str_radix(&hex[2..4], 0x10).map_err(|_| Error::ParseError)?;
+        let b = u8::from_str_radix(&hex[4..6], 0x10).map_err(|_| Error::ParseError)?;
+        Ok(Self::rgb(r, g, b))
+    }
+
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n, n)
     }
 
     pub fn eq(self, rhs: Self) -> bool {
         f32_eq(self.x, rhs.x) && f32_eq(self.y, rhs.y) && f32_eq(self.z, rhs.z)
+    }
+
+    pub fn srgb_to_linear(self) -> Self {
+        Self::new(srgb_to_linear(self.x), srgb_to_linear(self.y), srgb_to_linear(self.z))
     }
 }
 
@@ -150,6 +174,18 @@ impl From<Vec4> for Vec3 {
     }
 }
 
+impl Mul<Vec3> for f32 {
+    type Output = Vec3;
+
+    fn mul(self, mut rhs: Vec3) -> Self::Output {
+        rhs.x *= self;
+        rhs.y *= self;
+        rhs.z *= self;
+
+        rhs
+    }
+}
+
 impl Add for Vec3 {
     type Output = Self;
 
@@ -163,7 +199,7 @@ impl Add for Vec3 {
 }
 
 #[repr(C)]
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Vec4 {
     pub x: f32,
     pub y: f32,
@@ -172,6 +208,32 @@ pub struct Vec4 {
 }
 
 as_bytes!(Vec4);
+
+impl Index<usize> for Vec4 {
+    type Output=f32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            3 => &self.w,
+            _ => panic!("index should be [0,4]"),
+        }
+    }
+}
+
+impl IndexMut<usize> for Vec4 {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        match index {
+            0 => &mut self.x,
+            1 => &mut self.y,
+            2 => &mut self.z,
+            3 => &mut self.w,
+            _ => panic!("index should be [0,4]"),
+        }
+    }
+}
 
 impl Vec4 {
     pub fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
@@ -201,9 +263,27 @@ impl Vec4 {
     }
 }
 
+impl Mul<Vec4> for f32 {
+    type Output = Vec4;
+
+    fn mul(self, mut rhs: Vec4) -> Self::Output {
+        rhs.x *= self;
+        rhs.y *= self;
+        rhs.z *= self;
+        rhs.w *= self;
+        rhs
+    }
+}
+
 impl From<(f32, f32, f32, f32)> for Vec4 {
     fn from(value: (f32, f32, f32, f32)) -> Self {
         Self::new(value.0, value.1, value.2, value.3)
+    }
+}
+
+impl From<[f32; 4]> for Vec4 {
+    fn from(value: [f32; 4]) -> Self {
+        Self::new(value[0], value[1], value[2], value[3])
     }
 }
 
@@ -258,7 +338,8 @@ impl From<f32> for Vec4 {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Mat4 {
-    pub xy: [[f32; 4]; 4],
+    //pub xy: [[f32; 4]; 4],
+    c: [Vec4; 4],
 }
 
 as_bytes!(Mat4);
@@ -269,25 +350,51 @@ impl Default for Mat4 {
     }
 }
 
+impl Index<usize> for Mat4 {
+    type Output=Vec4;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.c[0],
+            1 => &self.c[1],
+            2 => &self.c[2],
+            3 => &self.c[3],
+            _ => panic!("index should be [0,4]"),
+        }
+    }
+}
+
+impl IndexMut<usize> for Mat4 {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        match index {
+            0 => &mut self.c[0],
+            1 => &mut self.c[1],
+            2 => &mut self.c[2],
+            3 => &mut self.c[3],
+            _ => panic!("index should be [0,4]"),
+        }
+    }
+}
+
 impl Mat4 {
     pub fn zero() -> Self {
         Self {
-            xy: Default::default(),
+            c: Default::default(),
         }
     }
 
     pub fn identity() -> Self {
         let mut ret = Self::zero();
         for i in 0..4 {
-            ret.xy[i][i] = 1.0;
+            ret[i][i] = 1.0;
         }
         ret
     }
 
     pub fn scale(scale: Vec2) -> Self {
         let mut ret = Self::identity();
-        ret.xy[0][0] = scale.x;
-        ret.xy[1][1] = scale.y;
+        ret[0][0] = scale.x;
+        ret[1][1] = scale.y;
         ret
     }
 
@@ -297,15 +404,15 @@ impl Mat4 {
 
     pub fn translate(translate: Vec3) -> Self {
         let mut ret = Self::identity();
-        ret.xy[3][0] = translate.x;
-        ret.xy[3][1] = translate.y;
-        ret.xy[3][2] = translate.z;
+        ret[3][0] = translate.x;
+        ret[3][1] = translate.y;
+        ret[3][2] = translate.z;
         ret
     }
 
     pub fn depth(depth: f32) -> Self {
         let mut ret = Self::identity();
-        ret.xy[3][2] = depth;
+        ret[3][2] = depth;
         ret
     }
 
@@ -331,12 +438,30 @@ impl Mat4 {
 
     fn ortho(r: f32, l: f32, t: f32, b: f32, n: f32, f: f32) -> Self {
         let mut ret = Self::identity();
-        ret.xy[0][0] = 2.0 / (r - l);
-        ret.xy[1][1] = 2.0 / (t - b);
-        ret.xy[2][2] = -2.0 / (f - n);
-        ret.xy[3][0] = (l + r) / (l - r);
-        ret.xy[3][1] = (b + t) / (b - t);
-        ret.xy[3][2] = (n + f) / (n - f);
+        ret[0][0] = 2.0 / (r - l);
+        ret[1][1] = 2.0 / (t - b);
+        ret[2][2] = -2.0 / (f - n);
+        ret[3][0] = (l + r) / (l - r);
+        ret[3][1] = (b + t) / (b - t);
+        ret[3][2] = (n + f) / (n - f);
+        ret
+    }
+
+    /// Invert the matrix
+    /// Assumes that det(A) != 0
+    /// Also assumes that the matrix is upper-triangular
+    pub fn inverse(mut self) -> Self {
+        let mut ret = Self::identity();
+
+        for e in (0..4).rev() {
+            let s = self[e][e];
+            self[e] = (1.0/s) * self[e];
+            ret[e] = (1.0/s) * ret[e];
+            for y in (0..e).rev() {
+                ret[e][y] -= s * self[e][y];
+            }
+        }
+
         ret
     }
 }
@@ -346,7 +471,7 @@ impl fmt::Display for Mat4 {
         for y in 0..4 {
             write!(f, "[ ")?;
             for x in 0..4 {
-                write!(f, "{:.2} ", self.xy[x][y])?;
+                write!(f, "{:.2} ", self[x][y])?;
             }
             writeln!(f, "]")?;
         }
@@ -361,7 +486,7 @@ impl Mul<Mat4> for f32 {
     fn mul(self, mut rhs: Mat4) -> Self::Output {
         for y in 0..4 {
             for x in 0..4 {
-                rhs.xy[x][y] *= self;
+                rhs[x][y] *= self;
             }
         }
         rhs
@@ -378,7 +503,7 @@ impl Mul<Vec4> for Mat4 {
         for y in 0..4 {
             let mut sum = 0.0;
             for e in 0..4 {
-                sum += self.xy[e][y] * rhs[e];
+                sum += self[e][y] * rhs[e];
             }
             ret[y] = sum;
         }
@@ -396,9 +521,9 @@ impl Mul for Mat4 {
             for x in 0..4 {
                 let mut sum = 0.0;
                 for e in 0..4 {
-                    sum += self.xy[e][y] * rhs.xy[x][e];
+                    sum += self[e][y] * rhs[x][e];
                 }
-                ret.xy[x][y] = sum;
+                ret[x][y] = sum;
             }
         }
 
@@ -412,7 +537,7 @@ impl Add for Mat4 {
     fn add(mut self, rhs: Self) -> Self::Output {
         for y in 0..4 {
             for x in 0..4 {
-                self.xy[x][y] += rhs.xy[x][y]
+                self[x][y] += rhs[x][y]
             }
         }
         self
@@ -512,5 +637,9 @@ pub mod ease {
         let c3 = c1 + 1.0;
 
         c3 * p * p * p - c1 * p * p
+    }
+
+    pub fn out_expo(p: f32) -> f32 {
+        1.0 - 2.0f32.powf(-10.0 * p)
     }
 }

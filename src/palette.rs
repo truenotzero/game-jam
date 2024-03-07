@@ -28,6 +28,15 @@ impl Palette {
             PaletteKey::Fruit => self.fruit,
         }
     }
+
+    pub fn srgb_to_linear(self) -> Self {
+        Self {
+            snake: self.snake.srgb_to_linear(),
+            wall: self.wall.srgb_to_linear(),
+            background: self.background.srgb_to_linear(),
+            fruit: self.fruit.srgb_to_linear(),
+        }
+    }
 }
 
 pub fn aperture() -> Palette {
@@ -40,5 +49,37 @@ pub fn aperture() -> Palette {
         wall: light_blue,
         background: dark_blue,
         fruit: orange,
-    }
+    }.srgb_to_linear()
+}
+
+pub fn bright_pastel() -> Palette {
+    let green = Vec3::hexcode("5EFC8D").unwrap();
+    let lavender = Vec3::hexcode("FDECEF").unwrap();
+    let pink = Vec3::hexcode("EF476F").unwrap();
+    let indigo = Vec3::hexcode("8377D1").unwrap();
+    let sunglow = Vec3::hexcode("FFD166").unwrap();
+
+    Palette {
+        snake: green,
+        wall: indigo,
+        background: lavender,
+        fruit: sunglow,
+        // enemy: pink
+    }.srgb_to_linear()
+}
+
+pub fn dark_pastel() -> Palette {
+    let dark_blue = Vec3::hexcode("102542").unwrap();
+    let light_blue = Vec3::hexcode("9DCDC0").unwrap();
+    let pink = Vec3::hexcode("EF476F").unwrap();
+    let indigo = Vec3::hexcode("8377D1").unwrap();
+    let sunglow = Vec3::hexcode("FFD166").unwrap();
+
+    Palette {
+        snake: light_blue,
+        wall: indigo,
+        background: dark_blue,
+        fruit: sunglow,
+        // enemy: pink
+    }.srgb_to_linear()
 }

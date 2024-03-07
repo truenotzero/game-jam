@@ -1,15 +1,11 @@
 use core::fmt;
 use std::{
-    cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
-    iter,
-    sync::mpsc::{self, Receiver, Sender},
-    time::Duration,
+    any, cell::{Ref, RefCell, RefMut}, collections::HashMap, iter, sync::mpsc::{self, Receiver, Sender}, time::Duration
 };
 
 use glfw::Key;
 
-use crate::{math::Vec2, palette::Palette, render::InstancedShapeManager, time};
+use crate::{math::{Vec2, Vec3}, palette::Palette, render::InstancedShapeManager, time};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Entities {
@@ -63,6 +59,7 @@ pub enum Components {
     Scale,
     Timer,
     Spawner,
+    Animation,
 }
 
 impl fmt::Display for Components {
@@ -104,6 +101,17 @@ impl Direction {
             Direction::Right => Direction::Left,
         }
     }
+
+    /// Get the direction on the right of this one
+    pub fn right(self) -> Self {
+        match self {
+            Direction::None => Direction::None,
+            Direction::Up => Direction::Right,
+            Direction::Down => Direction::Left,
+            Direction::Left => Direction::Up,
+            Direction::Right => Direction::Down,
+        }
+    }
 }
 
 impl From<Direction> for Vec2 {
@@ -115,6 +123,12 @@ impl From<Direction> for Vec2 {
             Direction::Left => Self::new(-1.0, 0.0),
             Direction::Right => Self::new(1.0, 0.0),
         }
+    }
+}
+
+impl From<Direction> for Vec3 {
+    fn from(value: Direction) -> Self {
+        Vec3::from((Vec2::from(value), 0.0))
     }
 }
 
@@ -177,6 +191,13 @@ pub type BodyLength = i16;
 pub type SelfDestruct = i16;
 pub type Scale = crate::math::Vec2;
 pub type Timer = time::Threshold;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum Animation {
+    #[default]
+    Idle,
+    Growing,
+}
 
 pub type EntityId = usize;
 
@@ -275,6 +296,14 @@ impl<'m> EntityView<'m> {
         self.unwrap(self.storage_mut().get_key(self.id), Components::Keyboard)
     }
 
+    pub fn get_animation(&self) -> Animation {
+        self.unwrap(self.storage().get_animation(self.id), Components::Animation)
+    }
+
+    pub fn set_animation(&mut self, animation: Animation) {
+        self.storage_mut().set_animation(self.id, animation)
+    }
+
     pub fn access_timer<T>(&mut self, f: impl FnOnce(&mut Timer) -> T) -> T {
         let mut storage = self.storage_mut();
         let mut timer = storage.access_timer(self.id).expect(&format!(
@@ -316,6 +345,7 @@ struct Storages {
     scales: Storage<Scale>,
     timers: Storage<Timer>,
     spawners: Storage<()>,
+    animations: Storage<Animation>,
 }
 
 impl Storages {
@@ -336,6 +366,7 @@ impl Storages {
             scales: Default::default(),
             timers: Default::default(),
             spawners: Default::default(),
+            animations: Default::default(),
         }
     }
 
@@ -349,6 +380,7 @@ impl Storages {
         self.scales.remove(&entity);
         self.timers.remove(&entity);
         self.spawners.remove(&entity);
+        self.animations.remove(&entity);
     }
 
     pub fn add_component(&mut self, entity: EntityId, component: Components) {
@@ -367,6 +399,7 @@ impl Storages {
             C::Spawner => {
                 self.spawners.insert(entity, ());
             }
+            C::Animation => self.set_animation(entity, Animation::default()),
         }
     }
 
@@ -436,6 +469,14 @@ impl Storages {
 
     pub fn set_scale(&mut self, entity: EntityId, scale: Scale) {
         self.scales.insert(entity, scale);
+    }
+
+    pub fn get_animation(&self, entity: EntityId) -> Option<Animation> {
+        self.animations.get(&entity).copied()
+    }
+
+    pub fn set_animation(&mut self, entity: EntityId, animation: Animation) {
+        self.animations.insert(entity, animation);
     }
 
     fn access_timer(&mut self, entity: EntityId) -> Option<&mut Timer> {

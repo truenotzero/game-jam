@@ -69,10 +69,9 @@ pub mod snake {
 
     use crate::{
         entity::{
-            Components, Direction, Entities, EntityId, EntityManager, EntityView, Position,
-            SelfDestruct,
+            Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position, SelfDestruct
         },
-        math::{Mat4, Vec3},
+        math::{ease::UnitBezier, Mat4, Vec2, Vec3},
         palette::Palette,
         render::{Instance, InstancedShapeManager},
     };
@@ -90,6 +89,7 @@ pub mod snake {
                 Components::BodyLength,
                 Components::Timer,
                 Components::Spawner,
+                Components::Animation,
             ],
         );
 
@@ -100,11 +100,12 @@ pub mod snake {
         id
     }
 
-    fn body(man: &mut EntityManager, position: Position, lifetime: SelfDestruct) -> EntityId {
+    fn body(man: &mut EntityManager, position: Position, direction: Direction, lifetime: SelfDestruct) -> EntityId {
         let id = man.spawn(
             Entities::SnakeBody,
             &[
                 Components::Position,
+                Components::Direction,
                 Components::Collider,
                 Components::SelfDestruct,
                 Components::Timer,
@@ -113,6 +114,7 @@ pub mod snake {
 
         let mut body = man.view(id).unwrap();
         body.set_position(position);
+        body.set_direction(direction);
         body.set_self_destruct(lifetime);
         body.access_timer(|t| t.set_threshold(STEP));
 
@@ -133,7 +135,11 @@ pub mod snake {
     }
 
     pub fn grow(entity: &mut EntityView) {
-        let len = entity.get_body_length();
+        entity.set_animation(Animation::Growing);
+        let mut len = entity.get_body_length();
+        if len == 0 {
+            len += 1;
+        }
         entity.set_body_length(len + 1);
     }
 
@@ -142,55 +148,88 @@ pub mod snake {
             return;
         }
 
+        entity.set_animation(Animation::Idle);
+
         let pos = entity.get_position();
-        let mut dir = entity.get_direction();
+        let dir = entity.get_direction();
         let len = entity.get_body_length();
 
-        let new_dir = loop {
+        let dir = loop {
             if let Some(k) = entity.get_key() {
                 use glfw::Key as K;
                 let new_dir = match k {
-                    K::W => Direction::Up,
-                    K::A => Direction::Left,
-                    K::S => Direction::Down,
-                    K::D => Direction::Right,
+                    K::W | K::Up => Direction::Up,
+                    K::A | K::Left => Direction::Left,
+                    K::S | K::Down => Direction::Down,
+                    K::D | K::Right => Direction::Right,
                     _ => continue,
                 };
 
                 if new_dir != dir && new_dir != dir.reverse() {
+                    entity.set_direction(new_dir);
                     break new_dir;
                 }
             }
 
-            break Direction::default();
+            break dir;
         };
-
-        if new_dir != Direction::None {
-            dir = new_dir;
-            entity.set_direction(dir);
-        }
 
         if len > 0 {
             entity.request_spawn(Box::new(move |man| {
-                body(man, pos, len);
+                body(man, pos, dir, len);
             }));
-
-            if len < 20 {
-                grow(entity);
-            }
         }
 
         let new_pos = pos + Vec3::from((dir.into(), 0.0));
         entity.set_position(new_pos);
     }
 
-    pub fn draw(entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(mut entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
         let pos = entity.get_position();
+        
+        if entity.which() == Entities::SnakeHead {
+            let pct = entity.access_timer(|t| t.progress());
 
-        renderer.push_instance(Instance {
-            transform: Mat4::translate(pos),
-            col: palette.snake,
-        })
+            if entity.get_animation() == Animation::Growing {
+                // let samples = 32;
+                // // feels slow
+                // //let bezier = UnitBezier::new(0.0, 0.85, 0.4, 0.97, samples);
+
+                // // breaks up
+                // //let bezier = UnitBezier::new(0.13, 1.5, 0.39, 1.01, samples);
+
+                // //
+                // let bezier = UnitBezier::new(0.28, 1.16, 1.0, 1.0, samples);
+                
+                // let p = 1.2 * bezier.apply(pct);
+                // let delta = (p - 1.0) * Vec3::from(entity.get_direction());
+                // renderer.push_instance(Instance {
+                //     transform: Mat4::translate(pos + delta),
+                //     col: palette.snake,
+                // })
+            }
+
+            let delta = (pct - 1.0) * Vec3::from(entity.get_direction());
+            renderer.push_instance(Instance {
+                transform: Mat4::translate(pos + delta),
+                col: palette.snake,
+            })
+        } else
+        if entity.get_self_destruct() == 1 {
+            let pct = entity.access_timer(|t| t.progress());
+            let delta = Vec3::from((pct * Vec2::from(entity.get_direction()), 0.0));
+            renderer.push_instance(Instance {
+                transform: Mat4::translate(pos + delta),
+                col: palette.snake,
+            })
+        }
+        else {
+            renderer.push_instance(Instance {
+                transform: Mat4::translate(pos),
+                col: palette.snake,
+            })
+        }
+
     }
 }
 
