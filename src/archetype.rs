@@ -3,7 +3,7 @@ pub mod wall {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::Mat4,
         palette::Palette,
-        render::{Instance, InstancedShapeManager},
+        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager, position: Position) -> EntityId {
@@ -18,10 +18,10 @@ pub mod wall {
         id
     }
 
-    pub fn draw(entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
         let pos = entity.get_position();
 
-        renderer.push_instance(Instance {
+        renderer.push(Tile {
             transform: Mat4::translate(pos),
             col: palette.wall,
         });
@@ -33,7 +33,7 @@ pub mod background {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{Instance, InstancedShapeManager},
+        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager, position: Position, dimensions: Vec2) -> EntityId {
@@ -53,11 +53,11 @@ pub mod background {
         id
     }
 
-    pub fn draw(entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
         let pos = entity.get_position();
         let scale = entity.get_scale();
 
-        renderer.push_instance(Instance {
+        renderer.push(Tile {
             transform: Mat4::translate(pos) * Mat4::scale(scale),
             col: palette.background,
         });
@@ -69,11 +69,12 @@ pub mod snake {
 
     use crate::{
         entity::{
-            Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position, SelfDestruct
+            Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
+            Position, SelfDestruct,
         },
         math::{ease::UnitBezier, Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{Instance, InstancedShapeManager},
+        render::{instanced::{InstancedShapeManager, Tile}, shield::Shield, RenderManager},
     };
 
     const STEP: Duration = Duration::from_millis(100);
@@ -100,7 +101,12 @@ pub mod snake {
         id
     }
 
-    fn body(man: &mut EntityManager, position: Position, direction: Direction, lifetime: SelfDestruct) -> EntityId {
+    fn body(
+        man: &mut EntityManager,
+        position: Position,
+        direction: Direction,
+        lifetime: SelfDestruct,
+    ) -> EntityId {
         let id = man.spawn(
             Entities::SnakeBody,
             &[
@@ -184,52 +190,50 @@ pub mod snake {
         entity.set_position(new_pos);
     }
 
-    pub fn draw(mut entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
-        let pos = entity.get_position();
-        
+    pub fn draw(mut entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
+        let mut pos = entity.get_position();
+
         if entity.which() == Entities::SnakeHead {
             let pct = entity.access_timer(|t| t.progress());
 
-            if entity.get_animation() == Animation::Growing {
-                // let samples = 32;
-                // // feels slow
-                // //let bezier = UnitBezier::new(0.0, 0.85, 0.4, 0.97, samples);
-
-                // // breaks up
-                // //let bezier = UnitBezier::new(0.13, 1.5, 0.39, 1.01, samples);
-
-                // //
-                // let bezier = UnitBezier::new(0.28, 1.16, 1.0, 1.0, samples);
-                
-                // let p = 1.2 * bezier.apply(pct);
-                // let delta = (p - 1.0) * Vec3::from(entity.get_direction());
-                // renderer.push_instance(Instance {
-                //     transform: Mat4::translate(pos + delta),
-                //     col: palette.snake,
-                // })
-            }
-
             let delta = (pct - 1.0) * Vec3::from(entity.get_direction());
-            renderer.push_instance(Instance {
-                transform: Mat4::translate(pos + delta),
+            let mut pd = pos + delta;
+            renderer.push(Tile {
+                transform: Mat4::translate(pd),
                 col: palette.snake,
-            })
-        } else
-        if entity.get_self_destruct() == 1 {
+            });
+            pd.z = -0.8;
+            renderer.push(Shield {
+                pos: pd,
+                col: palette.snake,
+                radius: 0.3,
+            });
+        } else if entity.get_self_destruct() == 1 {
             let pct = entity.access_timer(|t| t.progress());
             let delta = Vec3::from((pct * Vec2::from(entity.get_direction()), 0.0));
-            renderer.push_instance(Instance {
-                transform: Mat4::translate(pos + delta),
+            let mut pd = pos + delta;
+            renderer.push(Tile {
+                transform: Mat4::translate(pd),
                 col: palette.snake,
-            })
-        }
-        else {
-            renderer.push_instance(Instance {
+            });
+            pd.z = -0.7;
+            renderer.push(Shield {
+                pos: pd,
+                col: palette.snake,
+                radius: 0.3,
+            });
+        } else {
+            renderer.push(Tile {
                 transform: Mat4::translate(pos),
                 col: palette.snake,
-            })
+            });
+            pos.z = -0.1 * entity.get_self_destruct() as f32;
+            renderer.push(Shield {
+                pos,
+                col: palette.snake,
+                radius: 0.3,
+            });
         }
-
     }
 }
 
@@ -240,7 +244,7 @@ pub mod fruit {
         entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec3},
         palette::Palette,
-        render::{Instance, InstancedShapeManager},
+        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {
@@ -263,25 +267,11 @@ pub mod fruit {
         id
     }
 
-    pub fn draw(entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
         let pos = entity.get_position();
 
-        let transform = if entity.which() == Entities::SnakeHead {
-            // head
-            match entity.get_direction() {
-                Direction::None => todo!(),
-                Direction::Up => todo!(),
-                Direction::Down => todo!(),
-                Direction::Left => todo!(),
-                Direction::Right => todo!(),
-            }
-        } else {
-            // normal body part
-            Mat4::translate(pos)
-        };
-
-        renderer.push_instance(Instance {
-            transform,
+        renderer.push(Tile {
+            transform: Mat4::translate(pos),
             col: palette.fruit,
         });
     }
@@ -291,5 +281,62 @@ pub mod fruit {
             new(man);
         }));
         entity.kill();
+    }
+}
+
+pub mod fireball {
+    use std::time::Duration;
+
+    use crate::{
+        entity::{
+            Color, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position,
+        },
+        math::{Vec2, Vec3},
+        palette::{Palette, PaletteKey},
+        render::{fireball::{Fireball, FireballManager}, RenderManager},
+    };
+
+    pub fn new(
+        man: &mut EntityManager,
+        color: Color,
+        radius: f32,
+        position: Position,
+        target: Position,
+    ) -> EntityId {
+        let id = man.spawn(
+            Entities::Fireball,
+            &[
+                Components::Position,
+                Components::Collider,
+                Components::Direction,
+                Components::Speed,
+                Components::Scale,
+                Components::Color,
+            ],
+        );
+
+        let direction = (target - position).normalize();
+        let mut fireball = man.view(id).unwrap();
+        fireball.set_position(position);
+        fireball.set_direction(Direction::Raw(direction.into()));
+        fireball.set_speed(15.0);
+        fireball.set_scale(radius.into());
+        fireball.set_color(color);
+
+        id
+    }
+
+    pub fn tick(dt: Duration, entity: &mut EntityView) {
+        let pos = entity.get_position();
+        let dpos = dt.as_secs_f32() * entity.get_speed() * Vec3::from(entity.get_direction());
+        entity.set_position(pos + dpos);
+    }
+
+    pub fn draw(entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
+        renderer.push(Fireball {
+            pos: entity.get_position().into(),
+            col: palette.get(entity.get_color()),
+            radius: entity.get_scale().x,
+        })
     }
 }

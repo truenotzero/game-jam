@@ -27,7 +27,7 @@ impl Threshold {
             false
         }
     }
-    
+
     pub fn progress(&self) -> f32 {
         self.acc.as_secs_f32() / self.threshold.as_secs_f32()
     }

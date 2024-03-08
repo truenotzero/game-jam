@@ -1,11 +1,23 @@
 use core::fmt;
 use std::{
-    any, cell::{Ref, RefCell, RefMut}, collections::HashMap, iter, sync::mpsc::{self, Receiver, Sender}, time::Duration
+    any,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    f32::consts::E,
+    iter,
+    sync::mpsc::{self, Receiver, Sender},
+    time::Duration,
 };
 
 use glfw::Key;
 
-use crate::{math::{Vec2, Vec3}, palette::Palette, render::InstancedShapeManager, time};
+use crate::{
+    gl::buffer_flags::DEFAULT,
+    math::{Vec2, Vec3},
+    palette::{Palette, PaletteKey},
+    render::{fireball::FireballManager, instanced::InstancedShapeManager, RenderManager},
+    time,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Entities {
@@ -15,7 +27,7 @@ pub enum Entities {
     SnakeBody,
     Fruit,
     Enemy,
-    Projectile,
+    Fireball,
 }
 
 impl fmt::Display for Entities {
@@ -31,11 +43,17 @@ impl Entities {
         match self {
             Self::SnakeHead => snake::head_tick(dt, entity),
             Self::SnakeBody => snake::body_tick(dt, entity),
+            Self::Fireball => fireball::tick(dt, entity),
             _ => (),
         }
     }
 
-    pub fn draw(self, entity: EntityView, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(
+        self,
+        entity: EntityView,
+        renderer: &mut RenderManager,
+        palette: Palette,
+    ) {
         use crate::archetype::*;
 
         match self {
@@ -43,6 +61,7 @@ impl Entities {
             Self::Background => background::draw(entity, renderer, palette),
             Self::Fruit => fruit::draw(entity, renderer, palette),
             Self::SnakeHead | Self::SnakeBody => snake::draw(entity, renderer, palette),
+            Self::Fireball => fireball::draw(entity, renderer, palette),
             _ => (),
         }
     }
@@ -60,6 +79,8 @@ pub enum Components {
     Timer,
     Spawner,
     Animation,
+    Color,
+    Speed,
 }
 
 impl fmt::Display for Components {
@@ -89,6 +110,7 @@ pub enum Direction {
     Down,
     Left,
     Right,
+    Raw(Vec2),
 }
 
 impl Direction {
@@ -99,6 +121,7 @@ impl Direction {
             Direction::Down => Direction::Up,
             Direction::Left => Direction::Right,
             Direction::Right => Direction::Left,
+            Direction::Raw(e) => Direction::Raw(-e),
         }
     }
 
@@ -110,6 +133,7 @@ impl Direction {
             Direction::Down => Direction::Left,
             Direction::Left => Direction::Up,
             Direction::Right => Direction::Down,
+            Direction::Raw(_) => unimplemented!(),
         }
     }
 }
@@ -122,6 +146,7 @@ impl From<Direction> for Vec2 {
             Direction::Down => Self::new(0.0, 1.0),
             Direction::Left => Self::new(-1.0, 0.0),
             Direction::Right => Self::new(1.0, 0.0),
+            Direction::Raw(e) => e,
         }
     }
 }
@@ -151,6 +176,20 @@ impl Collider {
         }
     }
 
+    fn at_least<'v, 'r>(
+        t: Entities,
+        e1: &'r mut EntityView<'v>,
+        e2: &'r mut EntityView<'v>,
+    ) -> Option<&'r mut EntityView<'v>> {
+        if e1.which() == t {
+            Some(e1)
+        } else if e2.which() == t {
+            Some(e2)
+        } else {
+            None
+        }
+    }
+
     pub fn collide<'v>(e1: &mut EntityView<'v>, e2: &mut EntityView<'v>) {
         use crate::archetype::*;
         use Entities as E;
@@ -161,6 +200,8 @@ impl Collider {
             panic!("Game over");
         } else if let Some((_head, _wall)) = Self::is_between(E::SnakeHead, E::Wall, e1, e2) {
             panic!("Game over");
+        } else if let Some((fireball, _wall)) = Self::is_between(E::Fireball, E::Wall, e1, e2) {
+            fireball.kill();
         }
     }
 }
@@ -198,6 +239,9 @@ pub enum Animation {
     Idle,
     Growing,
 }
+
+pub type Color = PaletteKey;
+pub type Speed = f32;
 
 pub type EntityId = usize;
 
@@ -304,6 +348,22 @@ impl<'m> EntityView<'m> {
         self.storage_mut().set_animation(self.id, animation)
     }
 
+    pub fn get_color(&self) -> Color {
+        self.unwrap(self.storage().get_color(self.id), Components::Color)
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        self.storage_mut().set_color(self.id, color);
+    }
+
+    pub fn get_speed(&self) -> Speed {
+        self.unwrap(self.storage().get_speed(self.id), Components::Speed)
+    }
+
+    pub fn set_speed(&mut self, speed: Speed) {
+        self.storage_mut().set_speed(self.id, speed);
+    }
+
     pub fn access_timer<T>(&mut self, f: impl FnOnce(&mut Timer) -> T) -> T {
         let mut storage = self.storage_mut();
         let mut timer = storage.access_timer(self.id).expect(&format!(
@@ -346,6 +406,8 @@ struct Storages {
     timers: Storage<Timer>,
     spawners: Storage<()>,
     animations: Storage<Animation>,
+    colors: Storage<Color>,
+    speeds: Storage<Speed>,
 }
 
 impl Storages {
@@ -367,6 +429,8 @@ impl Storages {
             timers: Default::default(),
             spawners: Default::default(),
             animations: Default::default(),
+            colors: Default::default(),
+            speeds: Default::default(),
         }
     }
 
@@ -381,6 +445,8 @@ impl Storages {
         self.timers.remove(&entity);
         self.spawners.remove(&entity);
         self.animations.remove(&entity);
+        self.colors.remove(&entity);
+        self.speeds.remove(&entity);
     }
 
     pub fn add_component(&mut self, entity: EntityId, component: Components) {
@@ -400,12 +466,15 @@ impl Storages {
                 self.spawners.insert(entity, ());
             }
             C::Animation => self.set_animation(entity, Animation::default()),
+            C::Color => self.set_color(entity, Color::default()),
+            C::Speed => self.set_speed(entity, Speed::default()),
         }
     }
 
     pub fn get_position(&self, entity: EntityId) -> Option<Position> {
         self.positions.get(&entity).copied()
     }
+
     pub fn set_position(&mut self, entity: EntityId, position: Position) {
         // check collision
         if self.is_collider(entity) {
@@ -413,9 +482,14 @@ impl Storages {
                 if !self.is_collider(other) {
                     continue;
                 }
-                if Vec2::from(position).eq((other_pos).into()) {
-                    // collision detected
-                    let _ = self.collisions.send((entity, other));
+
+                // shitty way of checking if it's a fireball
+                if self.speeds.contains_key(&entity) {
+                } else {
+                    if Vec2::from(position).eq((other_pos).into()) {
+                        // collision detected
+                        let _ = self.collisions.send((entity, other));
+                    }
                 }
             }
         }
@@ -477,6 +551,22 @@ impl Storages {
 
     pub fn set_animation(&mut self, entity: EntityId, animation: Animation) {
         self.animations.insert(entity, animation);
+    }
+
+    pub fn get_color(&self, entity: EntityId) -> Option<Color> {
+        self.colors.get(&entity).copied()
+    }
+
+    pub fn set_color(&mut self, entity: EntityId, color: Color) {
+        self.colors.insert(entity, color);
+    }
+
+    pub fn get_speed(&self, entity: EntityId) -> Option<Speed> {
+        self.speeds.get(&entity).copied()
+    }
+
+    pub fn set_speed(&mut self, entity: EntityId, speed: Speed) {
+        self.speeds.insert(entity, speed);
     }
 
     fn access_timer(&mut self, entity: EntityId) -> Option<&mut Timer> {
@@ -600,10 +690,15 @@ impl EntityManager {
         }
     }
 
-    pub fn draw(&mut self, renderer: &mut InstancedShapeManager, palette: Palette) {
+    pub fn draw(
+        &mut self,
+        renderer: &mut RenderManager,
+        palette: Palette,
+    ) {
         for id in self.entities.iter().cloned() {
             let view = self.view(id).unwrap();
-            view.which().draw(view, renderer, palette);
+            view.which()
+                .draw(view, renderer, palette);
         }
     }
 }

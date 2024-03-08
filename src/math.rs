@@ -1,5 +1,5 @@
 use core::fmt;
-use std::ops::{Add, Index, IndexMut, Mul, Sub};
+use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
 
 use crate::common::{as_bytes, Error, Result};
 
@@ -48,6 +48,12 @@ impl Vec2 {
     }
 }
 
+impl PartialEq for Vec2 {
+    fn eq(&self, other: &Self) -> bool {
+        Vec2::eq(*self, *other)
+    }
+}
+
 impl Add for Vec2 {
     type Output = Self;
 
@@ -75,6 +81,14 @@ impl Mul<Vec2> for f32 {
         rhs.x *= self;
         rhs.y *= self;
         rhs
+    }
+}
+
+impl Neg for Vec2 {
+    type Output = Vec2;
+
+    fn neg(self) -> Self::Output {
+        -1.0 * self
     }
 }
 
@@ -138,7 +152,24 @@ impl Vec3 {
     }
 
     pub fn srgb_to_linear(self) -> Self {
-        Self::new(srgb_to_linear(self.x), srgb_to_linear(self.y), srgb_to_linear(self.z))
+        Self::new(
+            srgb_to_linear(self.x),
+            srgb_to_linear(self.y),
+            srgb_to_linear(self.z),
+        )
+    }
+
+    pub fn len2(self) -> f32 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+
+    pub fn len(self) -> f32 {
+        self.len2().sqrt()
+    }
+
+    pub fn normalize(self) -> Self {
+        let s = 1.0 / self.len();
+        s * self
     }
 }
 
@@ -198,6 +229,18 @@ impl Add for Vec3 {
     }
 }
 
+impl Sub for Vec3 {
+    type Output = Vec3;
+
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self.z -= rhs.z;
+
+        self
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Vec4 {
@@ -210,7 +253,7 @@ pub struct Vec4 {
 as_bytes!(Vec4);
 
 impl Index<usize> for Vec4 {
-    type Output=f32;
+    type Output = f32;
 
     fn index(&self, index: usize) -> &Self::Output {
         match index {
@@ -243,7 +286,7 @@ impl Vec4 {
     pub fn diagonal(n: f32) -> Self {
         Self::new(n, n, n, n)
     }
-    
+
     pub fn direction(direction: Vec2) -> Self {
         Self {
             x: direction.x,
@@ -351,7 +394,7 @@ impl Default for Mat4 {
 }
 
 impl Index<usize> for Mat4 {
-    type Output=Vec4;
+    type Output = Vec4;
 
     fn index(&self, index: usize) -> &Self::Output {
         match index {
@@ -455,8 +498,8 @@ impl Mat4 {
 
         for e in (0..4).rev() {
             let s = self[e][e];
-            self[e] = (1.0/s) * self[e];
-            ret[e] = (1.0/s) * ret[e];
+            self[e] = (1.0 / s) * self[e];
+            ret[e] = (1.0 / s) * ret[e];
             for y in (0..e).rev() {
                 ret[e][y] -= s * self[e][y];
             }
@@ -499,7 +542,7 @@ impl Mul<Vec4> for Mat4 {
     fn mul(self, rhs: Vec4) -> Self::Output {
         let rhs = [rhs.x, rhs.y, rhs.z, rhs.w];
         let mut ret = [0.0; 4];
-        
+
         for y in 0..4 {
             let mut sum = 0.0;
             for e in 0..4 {

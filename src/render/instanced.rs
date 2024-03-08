@@ -8,6 +8,7 @@ use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, buffer_flags, call, ArrayBuffer, DrawContext, IndexBuffer, Shader, Uniform, Vao},
     math::{Mat4, Vec3, Vec4},
+    render::Renderer,
 };
 
 // per vertex
@@ -19,13 +20,13 @@ pub struct Vertex {
 #[repr(C)]
 // per instance
 #[derive(Default)]
-pub struct Instance {
+pub struct Tile {
     pub transform: Mat4, // shape transform
     pub col: Vec3,       // shape color
 }
 
 as_bytes!(Vertex);
-as_bytes!(Instance);
+as_bytes!(Tile);
 
 pub struct InstancedShapeManager<'a> {
     vao: Vao<'a>,
@@ -51,7 +52,7 @@ impl<'a> InstancedShapeManager<'a> {
 
         let instance_data = ArrayBuffer::new(ctx);
         instance_data.reserve(
-            size_of::<Instance>() * max_instances,
+            size_of::<Tile>() * max_instances,
             gl::buffer_flags::DYNAMIC_STORAGE,
         );
 
@@ -84,14 +85,14 @@ impl<'a> InstancedShapeManager<'a> {
     }
 
     /// Returns none if max instances reached
-    pub fn push_instance(&mut self, instance: Instance) {
+    pub fn push(&mut self, tile: Tile) {
         if self.num_instances == self.max_instances {
             panic!("Instance limit reached");
         }
 
-        let offset = size_of_val(&instance) * self.num_instances;
+        let offset = size_of_val(&tile) * self.num_instances;
         self.instance_data
-            .update(offset, unsafe { instance.as_bytes() });
+            .update(offset, unsafe { tile.as_bytes() });
 
         self.num_instances += 1;
     }

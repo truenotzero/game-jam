@@ -49,7 +49,8 @@ pub fn aperture() -> Palette {
         wall: light_blue,
         background: dark_blue,
         fruit: orange,
-    }.srgb_to_linear()
+    }
+    .srgb_to_linear()
 }
 
 pub fn bright_pastel() -> Palette {
@@ -65,7 +66,8 @@ pub fn bright_pastel() -> Palette {
         background: lavender,
         fruit: sunglow,
         // enemy: pink
-    }.srgb_to_linear()
+    }
+    .srgb_to_linear()
 }
 
 pub fn dark_pastel() -> Palette {
@@ -81,5 +83,6 @@ pub fn dark_pastel() -> Palette {
         background: dark_blue,
         fruit: sunglow,
         // enemy: pink
-    }.srgb_to_linear()
+    }
+    .srgb_to_linear()
 }

@@ -1,6 +1,13 @@
-use std::{mem::{offset_of, size_of}, path::Path};
+use std::{
+    mem::{offset_of, size_of},
+    path::Path,
+};
 
-use crate::{common::{as_bytes, AsBytes}, gl::{self, ArrayBuffer, DrawContext, Shader, Uniform, Vao}, math::{Vec2, Vec3, Vec4}};
+use crate::{
+    common::{as_bytes, AsBytes},
+    gl::{self, ArrayBuffer, DrawContext, Shader, Uniform, Vao},
+    math::{Vec2, Vec3, Vec4},
+};
 
 pub struct Fireball {
     pub pos: Vec2,
@@ -22,7 +29,10 @@ pub struct FireballManager<'a> {
 impl<'a> FireballManager<'a> {
     pub fn new(ctx: &'a DrawContext, max_fireballs: usize) -> Self {
         let vbo = ArrayBuffer::new(ctx);
-        vbo.reserve(16 * size_of::<Fireball>(), gl::buffer_flags::DYNAMIC_STORAGE);
+        vbo.reserve(
+            max_fireballs * size_of::<Fireball>(),
+            gl::buffer_flags::DYNAMIC_STORAGE,
+        );
         vbo.apply();
 
         let vao = Vao::new(ctx);
@@ -57,9 +67,10 @@ impl<'a> FireballManager<'a> {
             size_of::<Fireball>() as _,
             offset_of!(Fireball, radius) as _,
         ));
-        
-        let shader = Shader::from_file(ctx, Path::new("res/shaders/fireball")).expect("Fireball shader error");
-        
+
+        let shader = Shader::from_file(ctx, Path::new("res/shaders/fireball"))
+            .expect("Fireball shader error");
+
         Self {
             vao,
             vbo,
@@ -75,14 +86,19 @@ impl<'a> FireballManager<'a> {
             panic!("max fireballs")
         }
 
-        self.vbo.update(self.num_fireballs * size_of::<Fireball>(), unsafe { fireball.as_bytes() });
+        self.vbo
+            .update(self.num_fireballs * size_of::<Fireball>(), unsafe {
+                fireball.as_bytes()
+            });
 
         self.num_fireballs += 1;
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&mut self) {
         self.vao.apply();
         self.shader.apply();
         gl::call!(DrawArrays(POINTS, 0, self.num_fireballs as _));
+
+        self.num_fireballs = 0;
     }
 }

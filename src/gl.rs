@@ -13,7 +13,7 @@ use glfw::Context;
 use crate::{
     common::{AsBytes, Error, Result},
     math::{Mat4, Vec3, Vec4},
-    render::{Instance, Vertex},
+    render::instanced::{Tile, Vertex},
 };
 
 pub mod raw {
@@ -100,13 +100,13 @@ impl<'a> Vao<'a> {
         instance_data.apply();
         // shape transform, mat3 = 3 vecs = takes up 3 indices (1,2,3)
         call!(EnableVertexAttribArray(1));
-        let mat_offset = offset_of!(Instance, transform);
+        let mat_offset = offset_of!(Tile, transform);
         call!(VertexAttribPointer(
             1,
             4,
             raw::FLOAT,
             raw::FALSE,
-            size_of::<Instance>() as _,
+            size_of::<Tile>() as _,
             mat_offset as _,
         ));
         call!(VertexAttribDivisor(1, 1));
@@ -117,7 +117,7 @@ impl<'a> Vao<'a> {
             4,
             raw::FLOAT,
             raw::FALSE,
-            size_of::<Instance>() as _,
+            size_of::<Tile>() as _,
             mat_offset as _,
         ));
         call!(VertexAttribDivisor(2, 1));
@@ -128,7 +128,7 @@ impl<'a> Vao<'a> {
             4,
             raw::FLOAT,
             raw::FALSE,
-            size_of::<Instance>() as _,
+            size_of::<Tile>() as _,
             mat_offset as _,
         ));
         call!(VertexAttribDivisor(3, 1));
@@ -139,7 +139,7 @@ impl<'a> Vao<'a> {
             4,
             raw::FLOAT,
             raw::FALSE,
-            size_of::<Instance>() as _,
+            size_of::<Tile>() as _,
             mat_offset as _,
         ));
         call!(VertexAttribDivisor(4, 1));
@@ -151,8 +151,8 @@ impl<'a> Vao<'a> {
             3,
             raw::FLOAT,
             raw::FALSE,
-            size_of::<Instance>() as _,
-            offset_of!(Instance, col) as _,
+            size_of::<Tile>() as _,
+            offset_of!(Tile, col) as _,
         ));
         call!(VertexAttribDivisor(5, 1));
     }

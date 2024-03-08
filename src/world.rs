@@ -18,7 +18,7 @@ impl Room {
     fn new(man: &mut EntityManager, position: Vec2, dimensions: Scale) -> Self {
         let translate = -0.5 * dimensions;
         let room_to_world = Mat4::translate(Vec3::from((translate, 0.0)));
-        
+
         let mut parts = Vec::new();
         // make the background
         let new_pos = Position::new(position.x, position.y, BACKGROUND_DEPTH);
@@ -48,7 +48,7 @@ impl Room {
         // make connectors
         // TODO
 
-        Self { 
+        Self {
             parts,
             view_matrix: Mat4::screen(position, dimensions.x, dimensions.y),
         }

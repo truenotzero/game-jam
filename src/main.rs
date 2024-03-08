@@ -1,18 +1,21 @@
+use std::any::Any;
 use std::mem;
 use std::path::Path;
 use std::sync::mpsc::{self, Sender};
 use std::time::{Duration, Instant};
 
 use common::AsBytes;
-use entity::EntityManager;
-use fireball::{Fireball, FireballManager};
+use entity::{EntityManager, Position};
 use gl::{DrawContext, Shader, UniformBuffer};
 use glfw::{Context, OpenGlProfileHint};
 use glfw::{Key, WindowHint};
 use math::ease::UnitBezier;
 use math::{ease, lerp, Vec2, Vec3};
-use palette::Palette;
-use render::InstancedShapeManager;
+use palette::{Palette, PaletteKey};
+use render::fireball::{Fireball, FireballManager};
+use render::instanced::InstancedShapeManager;
+use render::shield::{Shield, ShieldManager};
+use render::{RenderManager, Renderer};
 
 use crate::math::{Mat4, Vec4};
 
@@ -26,8 +29,6 @@ mod palette;
 mod render;
 mod time;
 mod world;
-mod fireball;
-
 
 const WIDTH: u32 = 1200;
 const HEIGHT: u32 = 1200;
@@ -39,7 +40,9 @@ const HEIGHT: u32 = 1200;
 // mouse is now in world coordinates
 
 struct Game<'a> {
-    f: FireballManager<'a>,
+    // mouse position in world coordinates
+    mouse_x: f32,
+    mouse_y: f32,
 
     lerping: bool,
     accum: Duration,
@@ -51,29 +54,22 @@ struct Game<'a> {
     man: EntityManager,
     keystroke_tx: Sender<Key>,
     palette: Palette,
-    renderer: InstancedShapeManager<'a>,
+    renderer: RenderManager<'a>,
     common_uniforms: UniformBuffer<'a>,
 }
 
 impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
-        let mut f = FireballManager::new(ctx, 16);
-        f.push(Fireball {
-            pos: Vec2::new(-10.0, -10.0),
-            col: palette::dark_pastel().snake,
-            radius: 0.5,
-        });
-
         let normal = Mat4::screen(Vec2::default(), 50.0, 50.0);
 
-
-        let renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
+        let tile_renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
+        let fireball_renderer = FireballManager::new(ctx, 512);
 
         let (keystroke_tx, keystroke_rx) = mpsc::channel();
         let mut man = EntityManager::new(keystroke_rx);
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
-        let room= world::Room::main(&mut man);
+        let room = world::Room::main(&mut man);
         let starting_view = room.view();
 
         let common_uniforms = UniformBuffer::new(ctx);
@@ -83,15 +79,23 @@ impl<'a> Game<'a> {
             gl::buffer_flags::DYNAMIC_STORAGE,
         );
 
+        let mut renderer = RenderManager::new();
+        renderer.add_renderer(tile_renderer);
+        renderer.add_renderer(fireball_renderer);
+
+
+        renderer.add_renderer(ShieldManager::new(ctx, 512));
+
         Self {
-            f,
+            mouse_x: 0.0,
+            mouse_y: 0.0,
 
             lerping: false,
             accum: Duration::ZERO,
             bezier: UnitBezier::new(0.95, 0.1, 0.1, 0.95, 128),
             current_view: room.view(),
             next_view: normal,
-        
+
             room,
             man,
             keystroke_tx,
@@ -102,9 +106,11 @@ impl<'a> Game<'a> {
     }
 
     fn draw(&mut self) {
-        self.man.draw(&mut self.renderer, self.palette);
+        self.man.draw(
+            &mut self.renderer,
+            self.palette,
+        );
         self.renderer.draw();
-        self.f.draw();
     }
 
     fn tick(&mut self, dt: Duration) {
@@ -115,7 +121,8 @@ impl<'a> Game<'a> {
                 // let p = self.bezier.apply(pct);
                 let p = ease::out_expo(pct);
                 let lerped_matrix = lerp(self.current_view, self.next_view, p);
-                self.common_uniforms.update(0, unsafe { lerped_matrix.as_bytes() });
+                self.common_uniforms
+                    .update(0, unsafe { lerped_matrix.as_bytes() });
                 self.accum += dt;
             } else {
                 self.lerping = false;
@@ -132,29 +139,43 @@ impl<'a> Game<'a> {
             return;
         }
 
-        if key == Key::Space {
-            self.lerping = true;
+        match key {
+            Key::G => {
+                self.lerping = true;
+            }
+            Key::Space => {
+                archetype::fireball::new(
+                    &mut self.man,
+                    PaletteKey::Snake,
+                    0.5,
+                    Position::default(),
+                    Vec3::new(self.mouse_x, self.mouse_y, 0.0),
+                );
+            }
+            _ => (),
         }
 
         let _ = self.keystroke_tx.send(key);
     }
 
-    fn mouse_move(&self, x: f64, y: f64) {
+    fn mouse_move(&mut self, x: f64, y: f64) {
+        // screen coords
         let x = x as f32;
         let y = y as f32;
-        println!("raw: ({x:.2},{y:.2})");
 
+        // normalized [0,1]
         let x = x / WIDTH as f32;
         let y = y / HEIGHT as f32;
-        println!("nor: ({x:.2},{y:.2})");
-        
+
+        // normalized [-1,1]
         let x = 2.0 * x - 1.0;
         let y = 2.0 * y - 1.0;
-        println!("ndc: ({x:.2},{y:.2})");
 
+        // world coords
         let in_view = self.current_view.inverse();
-        let Vec4{x, y, ..} = in_view * Vec4::position(Vec3::new(x,y,0.0));
-        println!("wld: ({x:.2},{y:.2})");
+        let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(x, y, 0.0));
+        self.mouse_x = x;
+        self.mouse_y = -y;
     }
 }
 
@@ -215,13 +236,13 @@ impl Window {
                 match e {
                     glfw::WindowEvent::Key(key, _, glfw::Action::Press, _) => {
                         game.key_press(key, true)
-                    },
+                    }
                     glfw::WindowEvent::Key(key, _, glfw::Action::Release, _) => {
                         game.key_press(key, false)
-                    },
+                    }
                     glfw::WindowEvent::CursorPos(x, y) => {
                         game.mouse_move(x, y);
-                    },
+                    }
                     _ => (),
                 }
             }
