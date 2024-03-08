@@ -1,6 +1,8 @@
+use core::panic;
+
 use crate::{
     archetype,
-    entity::{EntityId, EntityManager, Position, Scale},
+    entity::{Direction, Entities, EntityId, EntityManager, Position, Scale},
     gl::raw::BACK,
     math::{Mat4, Vec2, Vec3, Vec4},
     world,
@@ -9,22 +11,33 @@ use crate::{
 const BACKGROUND_DEPTH: f32 = 0.9;
 const WALL_DEPTH: f32 = 0.8;
 
+pub enum RoomType {
+    Spawn,
+    Hall,
+    Walls,
+    Swarm,
+}
+
 pub struct Room {
-    view_matrix: Mat4,
+    position: Vec2,
+    dimensions: Scale,
     parts: Vec<EntityId>,
+
+    hall: Option<Box<Room>>,
+    direction: Direction,
+    width: f32,
 }
 
 impl Room {
     fn new(man: &mut EntityManager, position: Vec2, dimensions: Scale) -> Self {
-        let translate = -0.5 * dimensions;
+        let dimensions = dimensions + Vec2::diagonal(2.0);
+        let translate = position - 0.5 * dimensions;
         let room_to_world = Mat4::translate(Vec3::from((translate, 0.0)));
 
         let mut parts = Vec::new();
         // make the background
-        let new_pos = Position::new(position.x, position.y, BACKGROUND_DEPTH);
-        let new_pos = room_to_world * Vec4::position(new_pos);
-        let new_pos = Vec3::from(new_pos);
-        let bg = archetype::background::new(man, new_pos, dimensions);
+        let bgpos = position - 0.5 * dimensions;
+        let bg = archetype::background::new(man, Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH), dimensions);
         parts.push(bg);
 
         // wall it off
@@ -45,26 +58,125 @@ impl Room {
             }
         }
 
-        // make connectors
-        // TODO
-
         Self {
+            position,
+            dimensions,
             parts,
-            view_matrix: Mat4::screen(position, dimensions.x, dimensions.y),
+            direction: Direction::default(),
+            hall: None,
+            width: 0.0,
         }
     }
 
-    pub fn main(man: &mut EntityManager) -> Self {
-        Self::new(man, Vec2::default(), Vec2::new(40.0, 40.0))
+    fn make_hall(&mut self, man: &mut EntityManager, direction: Direction, width: usize, length: usize) {
+        // add walls
+        let width = (width + 2) as f32;
+        let length = length as f32;
+        let d = Vec2::from(direction);
+
+        // make the hallway room
+        let (pos, dim) = match direction {
+            Direction::Up | Direction::Down => {
+                let pos = Vec2::new(
+                    self.position.x, // + offset
+                    self.position.y + 0.5 * d.y * (self.dimensions.y + length),
+                );
+                let dim= Vec2::new(width , length);
+
+                (pos, dim)
+            },
+            Direction::Left | Direction::Right => {
+                let pos = Vec2::new(
+                    self.position.x + 0.5 * d.x * (self.dimensions.x + length),
+                    self.position.y, // + offset
+                );
+                let dim= Vec2::new(length , width);
+
+                (pos, dim)
+            },
+            _ => panic!(),
+        };
+
+        let hall = Self::new(man, pos, dim);
+        self.hall = Some(Box::new(hall));
+        self.direction = direction;
+        self.width = width;
     }
 
-    pub fn destroy(self, man: &mut EntityManager) {
-        for part in self.parts {
+    fn destroy_wall(&self, man: &mut EntityManager, side: Direction, hole_size: f32) {
+        let (xs, xe, ys, ye) = match side {
+            Direction::Up => {
+                let y = self.position.y - 0.5 * self.dimensions.y;
+                let xs = self.position.x - 0.5 * hole_size;
+                let xe = self.position.x + 0.5 * hole_size - 1.0;
+                (xs, xe, y, y)
+            },
+            Direction::Down => {
+                let y = self.position.y + 0.5 * self.dimensions.y - 1.0;
+                let xs = self.position.x - 0.5 * hole_size;
+                let xe = self.position.x + 0.5 * hole_size - 1.0;
+                (xs, xe, y, y)
+            },
+            Direction::Left => {
+                let x = self.position.x - 0.5 * self.dimensions.x;
+                let ys = self.position.y - 0.5 * hole_size;
+                let ye = self.position.y + 0.5 * hole_size - 1.0;
+                (x, x, ys, ye)
+            },
+            Direction::Right => {
+                let x = self.position.x + 0.5 * self.dimensions.x - 1.0;
+                let ys = self.position.y - 0.5 * hole_size;
+                let ye = self.position.y + 0.5 * hole_size - 1.0;
+                (x, x, ys, ye)
+            },
+            _ => panic!(),
+        };
+
+        for &id in &self.parts {
+            if let Some(mut wall) = man.view(id) {
+                let pos = wall.get_position();
+
+                if xs <= pos.x && pos.x <= xe && ys <= pos.y && pos.y <= ye {
+                    wall.kill();
+                }
+            }
+        }
+    }
+
+    pub fn break_walls(&self, man: &mut EntityManager) {
+        if let Some(hall) = &self.hall {
+            hall.destroy_wall(man, self.direction, self.width);
+            hall.destroy_wall(man, self.direction.reverse(), self.width);
+            self.destroy_wall(man, self.direction, self.width);
+        }
+    }
+
+    pub fn spawn(man: &mut EntityManager) -> Self {
+        let mut ret = Self::new(man, Vec2::new(0.0, 0.0), Vec2::new(20.0, 20.0));
+        ret.make_hall(man, Direction::Down, 6, 18);
+        ret
+    }
+
+    pub fn destroy(&mut self, man: &mut EntityManager) {
+        for &part in &self.parts {
             man.kill(part);
         }
+
+        if let Some(hall) = &mut self.hall {
+            hall.destroy(man);
+        }
     }
 
-    pub fn view(&self) -> Mat4 {
-        self.view_matrix
+    pub fn view_room(&self) -> Mat4 {
+        Mat4::screen(self.position, self.dimensions.x, self.dimensions.y)
+    }
+
+    pub fn view_hall(&self) -> Mat4 {
+        if let Some(hall) = &self.hall {
+            let dim = hall.dimensions;
+            Mat4::screen(hall.position, dim.x, dim.y)
+        } else {
+            panic!()
+        }
     }
 }

@@ -1,21 +1,18 @@
-use std::any::Any;
 use std::mem;
-use std::path::Path;
 use std::sync::mpsc::{self, Sender};
 use std::time::{Duration, Instant};
 
 use common::AsBytes;
 use entity::{EntityManager, Position};
-use gl::{DrawContext, Shader, UniformBuffer};
+use gl::{DrawContext, UniformBuffer};
 use glfw::{Context, OpenGlProfileHint};
 use glfw::{Key, WindowHint};
-use math::ease::UnitBezier;
 use math::{ease, lerp, Vec2, Vec3};
 use palette::{Palette, PaletteKey};
-use render::fireball::{Fireball, FireballManager};
+use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
-use render::shield::{Shield, ShieldManager};
-use render::{RenderManager, Renderer};
+use render::shield::ShieldManager;
+use render::RenderManager;
 
 use crate::math::{Mat4, Vec4};
 
@@ -46,7 +43,6 @@ struct Game<'a> {
 
     lerping: bool,
     accum: Duration,
-    bezier: UnitBezier,
     next_view: Mat4,
     current_view: Mat4,
 
@@ -60,7 +56,7 @@ struct Game<'a> {
 
 impl<'a> Game<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
-        let normal = Mat4::screen(Vec2::default(), 50.0, 50.0);
+        let normal = Mat4::screen(Vec2::default(), 75.0, 75.0);
 
         let tile_renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
         let fireball_renderer = FireballManager::new(ctx, 512);
@@ -69,8 +65,8 @@ impl<'a> Game<'a> {
         let mut man = EntityManager::new(keystroke_rx);
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
-        let room = world::Room::main(&mut man);
-        let starting_view = room.view();
+        let room = world::Room::spawn(&mut man);
+        let starting_view = room.view_room();
 
         let common_uniforms = UniformBuffer::new(ctx);
         common_uniforms.bind_buffer_base(0);
@@ -92,8 +88,7 @@ impl<'a> Game<'a> {
 
             lerping: false,
             accum: Duration::ZERO,
-            bezier: UnitBezier::new(0.95, 0.1, 0.1, 0.95, 128),
-            current_view: room.view(),
+            current_view: room.view_room(),
             next_view: normal,
 
             room,
@@ -143,6 +138,11 @@ impl<'a> Game<'a> {
             Key::G => {
                 self.lerping = true;
             }
+            Key::B => {
+                self.room.break_walls(&mut self.man);
+                self.next_view = self.room.view_hall();
+                self.lerping = true;
+            },
             Key::Space => {
                 archetype::fireball::new(
                     &mut self.man,

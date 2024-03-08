@@ -7,11 +7,15 @@ layout (std140, binding = 0) uniform Common {
 layout (points) in;
 layout (triangle_strip, max_vertices = 4) out;
 
-in vec4 vshieldCol[1];
+in vec3 vshieldCol[1];
 in float vradius[1];
+in int vnumSides[1];
+in vec2 vsides[1][4];
 
 out vec2 uv;
-out vec4 shieldCol;
+flat out vec3 shieldCol;
+flat out int numSides;
+flat out vec2 sides[4];
 
 void make_vertex(float x, float y) {
     vec2 corner = vec2(x, y);
@@ -19,6 +23,8 @@ void make_vertex(float x, float y) {
     gl_Position = uScreen * pos;
     uv = corner;
     shieldCol = vshieldCol[0];
+    numSides = vnumSides[0];
+    sides = vsides[0];
     EmitVertex();
 }
 

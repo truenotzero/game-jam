@@ -1,15 +1,94 @@
-use std::{mem::{offset_of, size_of}, path::Path};
+use std::{mem::{offset_of, size_of, MaybeUninit}, path::Path};
 
 use crate::{common::{as_bytes, AsBytes}, gl::{self, ArrayBuffer, DrawContext, Shader, Vao}, math::{Vec2, Vec3}};
 
-
+#[repr(C)]
 pub struct Shield {
-    pub pos: Vec3,
-    pub col: Vec3,
-    pub radius: f32,
+    pos: Vec2,
+    col: Vec3,
+    radius: f32,
+    num_sides: i32,
+    sides0: Vec2,
+    sides1: Vec2,
+    sides2: Vec2,
+    sides3: Vec2,
+}
+
+impl Shield {
+    pub fn new(pos: Vec2, col: Vec3, radius: f32) -> Self {
+        Self {
+            pos,
+            col,
+            radius,
+            num_sides: 0,
+            sides0: Default::default(),
+            sides1: Default::default(),
+            sides2: Default::default(),
+            sides3: Default::default(),
+        }
+    }
+
+    pub fn push_side(mut self, side: Vec2) -> Self {
+        match self.num_sides {
+            0 => self.sides0 = side,
+            1 => self.sides1 = side,
+            2 => self.sides2 = side,
+            3 => self.sides3 = side,
+            _ => panic!(),
+        }
+
+        self.num_sides += 1;
+        self
+    }
 }
 
 as_bytes!(Shield);
+
+struct VaoHelper<'a> {
+    vao: Vao<'a>,
+    attrib: gl::raw::GLuint,
+
+}
+
+impl<'a> VaoHelper<'a> {
+    pub fn new(ctx: &'a DrawContext) -> Self {
+        let vao = Vao::new(ctx);
+        vao.apply();
+        Self {
+            vao,
+            attrib: 0,
+        }
+    }
+
+    pub fn bind_buffer(self, buf: &ArrayBuffer) -> Self {
+        buf.apply();
+        self
+    }
+
+    pub fn push_attrib(mut self, size: gl::raw::GLint, type_: gl::raw::GLenum, normalized: gl::raw::GLboolean, stride: usize, pointer: usize) -> Self {
+        gl::call!(EnableVertexAttribArray(self.attrib));
+        gl::call!(VertexAttribPointer(self.attrib, size, type_, normalized, stride as _, pointer as _));
+
+        println!("[{}] Attribute=[size:{},type:{},normalized:{},stride:{},pointer:{}]", self.attrib, size, type_, normalized, stride, pointer);
+
+        self.attrib += 1;
+        self
+    }
+
+    pub fn push_int_attrib(mut self, size: gl::raw::GLint, type_: gl::raw::GLenum, stride: usize, pointer: usize) -> Self {
+        gl::call!(EnableVertexAttribArray(self.attrib));
+        gl::call!(VertexAttribIPointer(self.attrib, size, type_, stride as _, pointer as _));
+
+        println!("[{}] Int Attribute=[size:{},type:{},stride:{},pointer:{}]", self.attrib, size, type_, stride, pointer);
+
+        self.attrib += 1;
+        self
+    }
+
+    pub fn build(self) -> Vao<'a> {
+        self.vao
+    }
+}
 
 pub struct ShieldManager<'a> {
     vao: Vao<'a>,
@@ -26,42 +105,21 @@ impl<'a> ShieldManager<'a> {
         vbo.reserve(max_shields * size_of::<Shield>(), gl::buffer_flags::DYNAMIC_STORAGE);
         vbo.apply();
 
-        let vao = Vao::new(ctx);
-        vao.apply();
-        // aPos
-        gl::call!(EnableVertexAttribArray(0));
-        gl::call!(VertexAttribPointer(
-            0,
-            2,
-            FLOAT,
-            FALSE,
-            size_of::<Shield>() as _,
-            offset_of!(Shield, pos) as _,
-        ));
-        // aCol
-        gl::call!(EnableVertexAttribArray(1));
-        gl::call!(VertexAttribPointer(
-            1,
-            3,
-            FLOAT,
-            FALSE,
-            size_of::<Shield>() as _,
-            offset_of!(Shield, col) as _,
-        ));
-        // aRadius
-        gl::call!(EnableVertexAttribArray(2));
-        gl::call!(VertexAttribPointer(
-            2,
-            1,
-            FLOAT,
-            FALSE,
-            size_of::<Shield>() as _,
-            offset_of!(Shield, radius) as _,
-        ));
+        let vao = VaoHelper::new(ctx)
+            .bind_buffer(&vbo)
+            .push_attrib(2, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, pos))
+            .push_attrib(3, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, col))
+            .push_attrib(1, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, radius))
+            .push_int_attrib(1, gl::raw::INT, size_of::<Shield>(), offset_of!(Shield, num_sides))
+            .push_attrib(2, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, sides0))
+            .push_attrib(2, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, sides1))
+            .push_attrib(2, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, sides2))
+            .push_attrib(2, gl::raw::FLOAT, gl::raw::FALSE, size_of::<Shield>(), offset_of!(Shield, sides3))
+            ;
 
         let shader = Shader::from_file(ctx, Path::new("res/shaders/shield")).unwrap();
         Self {
-            vao,
+            vao: vao.build(),
             vbo,
             shader,
 

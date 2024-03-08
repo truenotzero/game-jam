@@ -91,12 +91,14 @@ pub mod snake {
                 Components::Timer,
                 Components::Spawner,
                 Components::Animation,
+                Components::Properties,
             ],
         );
 
         let mut snake = man.view(id).unwrap();
         snake.set_position(Vec3::new(0.0, 0.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
+        
 
         id
     }
@@ -197,42 +199,58 @@ pub mod snake {
             let pct = entity.access_timer(|t| t.progress());
 
             let delta = (pct - 1.0) * Vec3::from(entity.get_direction());
-            let mut pd = pos + delta;
+            let pd = pos + delta;
             renderer.push(Tile {
                 transform: Mat4::translate(pd),
                 col: palette.snake,
             });
-            pd.z = -0.8;
-            renderer.push(Shield {
-                pos: pd,
-                col: palette.snake,
-                radius: 0.3,
-            });
+
+            let facing = entity.get_direction();
+            let facing = if facing == Direction::None {
+                Direction::Up
+            } else {
+                facing
+            };
+            let shield = Shield::new(pd.into(), palette.snake, 0.4)
+                .push_side(facing.into())
+                .push_side(facing.right().into())
+                .push_side(facing.right().reverse().into())
+            ;
+
+            let shield = if entity.get_body_length() == 0 {
+                shield.push_side(facing.reverse().into())
+            } else {
+                shield
+            };
+
+            renderer.push(shield);
+
         } else if entity.get_self_destruct() == 1 {
+            // tail
             let pct = entity.access_timer(|t| t.progress());
             let delta = Vec3::from((pct * Vec2::from(entity.get_direction()), 0.0));
-            let mut pd = pos + delta;
+            let pd = pos + delta;
             renderer.push(Tile {
                 transform: Mat4::translate(pd),
                 col: palette.snake,
             });
-            pd.z = -0.7;
-            renderer.push(Shield {
-                pos: pd,
-                col: palette.snake,
-                radius: 0.3,
-            });
+            let back = entity.get_direction().reverse();
+            renderer.push(Shield::new(pd.into(), palette.snake, 0.4)
+                .push_side(back.into())
+                .push_side(back.right().into())
+                .push_side(back.right().reverse().into())
+            );
         } else {
+            // body
             renderer.push(Tile {
                 transform: Mat4::translate(pos),
                 col: palette.snake,
             });
+            renderer.push(Shield::new(pos.into(), palette.snake, 0.4)
+                .push_side(entity.get_direction().right().into())
+                .push_side(entity.get_direction().right().reverse().into())
+            );
             pos.z = -0.1 * entity.get_self_destruct() as f32;
-            renderer.push(Shield {
-                pos,
-                col: palette.snake,
-                radius: 0.3,
-            });
         }
     }
 }
@@ -241,8 +259,8 @@ pub mod fruit {
     use rand::{thread_rng, Rng};
 
     use crate::{
-        entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView},
-        math::{Mat4, Vec3},
+        entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView, Position},
+        math::{Mat4, Vec2, Vec3},
         palette::Palette,
         render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
     };
@@ -263,6 +281,22 @@ pub mod fruit {
 
         let mut fruit = man.view(id).unwrap();
         fruit.set_position(Vec3::new(x, y, 0.0));
+
+        id
+    }
+
+    pub fn put_at(man: &mut EntityManager, pos: Vec2) -> EntityId {
+        let id = man.spawn(
+            Entities::Fruit,
+            &[
+                Components::Position,
+                Components::Collider,
+                Components::Spawner,
+            ],
+        );
+
+        let mut fruit = man.view(id).unwrap();
+        fruit.set_position(Vec3::new(pos.x, pos.y, 0.0));
 
         id
     }

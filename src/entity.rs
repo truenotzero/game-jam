@@ -1,12 +1,6 @@
 use core::fmt;
 use std::{
-    any,
-    cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
-    f32::consts::E,
-    iter,
-    sync::mpsc::{self, Receiver, Sender},
-    time::Duration,
+    any::{self, Any}, cell::{Ref, RefCell, RefMut}, collections::HashMap, f32::consts::E, iter, rc::Rc, sync::mpsc::{self, Receiver, Sender}, time::Duration
 };
 
 use glfw::Key;
@@ -81,6 +75,7 @@ pub enum Components {
     Animation,
     Color,
     Speed,
+    Properties,
 }
 
 impl fmt::Display for Components {
@@ -232,6 +227,8 @@ pub type BodyLength = i16;
 pub type SelfDestruct = i16;
 pub type Scale = crate::math::Vec2;
 pub type Timer = time::Threshold;
+pub type Property = Rc<RefCell<dyn Any>>;
+pub type Properties = HashMap<&'static str, Property>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum Animation {
@@ -289,6 +286,14 @@ impl<'m> EntityView<'m> {
 
     fn unwrap<T>(&self, t: Option<T>, component: Components) -> T {
         t.expect(&format!("{} should have {}", self.type_, component))
+    }
+
+    pub fn new_property(&self, name: &'static str, value: impl Any) {
+        self.storage_mut().new_property(self.id, name, value)
+    }
+
+    pub fn get_property(&self, name: &str) -> Option<Property> {
+        self.storage().get_property(self.id, name)
     }
 
     pub fn get_position(&self) -> Position {
@@ -408,6 +413,7 @@ struct Storages {
     animations: Storage<Animation>,
     colors: Storage<Color>,
     speeds: Storage<Speed>,
+    properties: Storage<Properties>,
 }
 
 impl Storages {
@@ -431,6 +437,7 @@ impl Storages {
             animations: Default::default(),
             colors: Default::default(),
             speeds: Default::default(),
+            properties: Default::default(),
         }
     }
 
@@ -447,6 +454,7 @@ impl Storages {
         self.animations.remove(&entity);
         self.colors.remove(&entity);
         self.speeds.remove(&entity);
+        self.properties.remove(&entity);
     }
 
     pub fn add_component(&mut self, entity: EntityId, component: Components) {
@@ -468,7 +476,16 @@ impl Storages {
             C::Animation => self.set_animation(entity, Animation::default()),
             C::Color => self.set_color(entity, Color::default()),
             C::Speed => self.set_speed(entity, Speed::default()),
+            C::Properties => { self.properties.insert(entity, Default::default()); },
         }
+    }
+
+    pub fn new_property(&mut self, entity: EntityId, name: &'static str, value: impl Any) {
+        self.properties.get_mut(&entity).map(|p| p.insert(name, Rc::new(RefCell::new(value))));
+    }
+
+    pub fn get_property(&self, entity: EntityId, name: &str) -> Option<Property> {
+        self.properties.get(&entity).and_then(|m| m.get(name)).cloned()
     }
 
     pub fn get_position(&self, entity: EntityId) -> Option<Position> {
@@ -635,16 +652,21 @@ impl EntityManager {
         id
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item=EntityView> {
+        self.entities.iter().filter_map(|&id| self.view(id))
+    }
+
     pub fn kill(&mut self, entity: EntityId) {
         // binary search is legal because entity id is ever-increasing
         // and insertion happens only at the end (thus keeping the vector sorted)
-        let index = self.entities.binary_search(&entity).unwrap();
-        self.entities.remove(index);
-        self.types.remove(index);
+        if let Ok(index) = self.entities.binary_search(&entity) {
+            self.entities.remove(index);
+            self.types.remove(index);
 
-        // remove components if they exist
-        if let Ok(mut storage) = self.storage.try_borrow_mut() {
-            storage.kill(entity);
+            // remove components if they exist
+            if let Ok(mut storage) = self.storage.try_borrow_mut() {
+                storage.kill(entity);
+            }
         }
     }
 
