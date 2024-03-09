@@ -31,8 +31,7 @@ mod sound;
 mod time;
 mod world;
 
-const WIDTH: u32 = 1200;
-const HEIGHT: u32 = 1200;
+const SCALE_FACTOR: f32 = 0.85;
 // mouse to world coords
 // mouse is in screen space coordinates
 // normalize to [0,1] range
@@ -44,6 +43,8 @@ struct Game<'a> {
     // mouse position in world coordinates
     mouse_x: f32,
     mouse_y: f32,
+    view_width: f32,
+    view_height: f32,
 
     lerping: bool,
     accum: Duration,
@@ -61,7 +62,7 @@ struct Game<'a> {
 }
 
 impl<'a> Game<'a> {
-    fn new(ctx: &'a DrawContext) -> Self {
+    fn new(ctx: &'a DrawContext, view_width: f32, view_height: f32) -> Self {
         let normal = Mat4::screen(Vec2::default(), 75.0, 75.0);
 
         let tile_renderer = InstancedShapeManager::quads(ctx, 16 * 1024);
@@ -92,6 +93,8 @@ impl<'a> Game<'a> {
         Self {
             mouse_x: 0.0,
             mouse_y: 0.0,
+            view_width,
+            view_height,
 
             lerping: false,
             accum: Duration::ZERO,
@@ -159,12 +162,9 @@ impl<'a> Game<'a> {
 
     fn mouse_move(&mut self, x: f64, y: f64) {
         // screen coords
-        let x = x as f32;
-        let y = y as f32;
-
         // normalized [0,1]
-        let x = x / WIDTH as f32;
-        let y = y / HEIGHT as f32;
+        let x = x as f32 / self.view_width;
+        let y = y as f32 / self.view_height;
 
         // normalized [-1,1]
         let x = 2.0 * x - 1.0;
@@ -181,6 +181,8 @@ impl<'a> Game<'a> {
 }
 
 struct Window {
+    width: f32,
+    height: f32,
     draw_context: DrawContext,
     window: glfw::PWindow,
     event_pump: glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
@@ -196,14 +198,34 @@ impl Window {
         glfw.window_hint(WindowHint::ContextVersion(4, 5));
         glfw.window_hint(WindowHint::Samples(Some(16)));
 
+        let (screen_width, screen_height) = glfw.with_primary_monitor(|_, m| {
+            let m = m.expect("Can't get primary monitor");
+            let mode = m.get_video_mode().expect("Can't get video mode");
+            (mode.width as f32, mode.height as f32)
+        });
+
+        // aspect ratio 1:1
+        let dim = screen_height.min(screen_width);
+        let width = SCALE_FACTOR * dim as f32;
+        let height = SCALE_FACTOR * dim as f32;
+
         let (mut window, event_pump) = glfw
-            .create_window(WIDTH, HEIGHT, "Snek", glfw::WindowMode::Windowed)
+            .create_window(width as u32, height as u32, "Snek", glfw::WindowMode::Windowed)
             .expect("Failed to create window");
 
         // window setup
         window.set_resizable(false);
         window.set_key_polling(true);
         window.set_cursor_pos_polling(true);
+        let favicon = image::load_from_memory(resources::ICON).unwrap();
+        window.set_icon(vec![favicon.into()]);
+
+        // center the window
+        let pos_x = (screen_width - width) / 2.0;
+        let pos_y = (screen_height - height) / 2.0;
+        window.set_pos(pos_x as i32, pos_y as i32);
+
+
         let draw_context = DrawContext::create(&mut window);
 
         // set up opengl stuff here
@@ -218,6 +240,9 @@ impl Window {
         gl::call!(Enable(MULTISAMPLE));
 
         Self {
+            width,
+            height,
+
             glfw,
             window,
             event_pump,
@@ -228,7 +253,7 @@ impl Window {
     fn run(mut self) {
         self.window.show();
 
-        let mut game = Game::new(&self.draw_context);
+        let mut game = Game::new(&self.draw_context, self.width, self.height);
 
         let mut last = Instant::now();
         while !self.window.should_close() {

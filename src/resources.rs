@@ -14,6 +14,9 @@ pub type Resource = &'static [u8];
 pub type Sound = Resource;
 pub type Shader = &'static [Resource];
 
+// WINDOW ICON //
+pub const ICON: Resource = load!("favicon.ico");
+
 // SOUNDS //
 pub mod sounds {
     use super::Sound;

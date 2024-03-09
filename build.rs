@@ -1,6 +1,7 @@
 use std::{env, fs::File, path::Path};
 
 use gl_generator::{Api, Fallbacks, GlobalGenerator, Profile, Registry};
+use winres::WindowsResource;
 
 extern crate gl_generator;
 
@@ -13,6 +14,17 @@ fn create_gl_bindings() {
         .unwrap()
 }
 
+fn set_icon_windows() {
+    if env::var_os("CARGO_CFG_WINDOWS").is_some() {
+        WindowsResource::new()
+            .set_icon("res/thumbnail.ico")
+            .compile()
+            .unwrap()
+        ;
+    }
+}
+
 fn main() {
     create_gl_bindings();
+    set_icon_windows();
 }
