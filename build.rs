@@ -19,8 +19,7 @@ fn set_icon_windows() {
         WindowsResource::new()
             .set_icon("res/thumbnail.ico")
             .compile()
-            .unwrap()
-        ;
+            .unwrap();
     }
 }
 

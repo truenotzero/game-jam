@@ -6,7 +6,8 @@ use std::{
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
-    math::{Mat4, Vec3, Vec4}, resources,
+    math::{Mat4, Vec3, Vec4},
+    resources,
 };
 
 // per vertex

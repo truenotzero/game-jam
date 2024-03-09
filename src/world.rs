@@ -1,6 +1,8 @@
 use core::panic;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use rand::thread_rng;
+
 use crate::{
     archetype,
     entity::{Direction, EntityId, EntityManager, Position, Scale},
@@ -113,12 +115,13 @@ impl Room {
         self.width = width;
     }
 
-    fn replace_walls_with_triggers(
+    /// replaces walls, optionally putting triggers in their place
+    fn replace_walls(
         &self,
         man: &mut EntityManager,
         side: Direction,
         hole_size: f32,
-        tx: Sender<()>,
+        tx: Option<Sender<()>>,
     ) {
         let (xs, xe, ys, ye) = match side {
             Direction::Up => {
@@ -154,8 +157,10 @@ impl Room {
 
                 if xs <= pos.x && pos.x <= xe && ys <= pos.y && pos.y <= ye {
                     wall.kill();
-
-                    archetype::trigger::new(man, pos.into(), |_| true, tx.clone());
+                    
+                    if let Some(tx) = tx.clone() {
+                        archetype::trigger::new(man, pos.into(), |_| true, tx);
+                    }
                 }
             }
         }
@@ -172,22 +177,16 @@ impl Room {
         let (tx_near, rx_near) = mpsc::channel();
         let (tx_far, rx_far) = mpsc::channel();
 
-        hall.replace_walls_with_triggers(man, self.direction, self.width, tx_far.clone());
-        hall.replace_walls_with_triggers(
+        hall.replace_walls(man, self.direction, self.width, Some(tx_far.clone()));
+        hall.replace_walls(
             man,
             self.direction.reverse(),
             self.width,
-            tx_near.clone(),
+            None,
         );
-        self.replace_walls_with_triggers(man, self.direction, self.width, tx_near.clone());
+        self.replace_walls(man, self.direction, self.width, Some(tx_near.clone()));
 
         (rx_near, rx_far)
-    }
-
-    pub fn spawn(man: &mut EntityManager) -> Self {
-        let mut ret = Self::new(man, Vec2::new(0.0, 0.0), Vec2::new(20.0, 20.0));
-        ret.make_hall(man, Direction::Down, 6, 18);
-        ret
     }
 
     pub fn _destroy(&mut self, man: &mut EntityManager) {
@@ -201,7 +200,7 @@ impl Room {
     }
 
     // view the room while keeping a 1:1 aspect ratio
-    pub fn view_room(&self) -> Mat4 {
+    pub fn view(&self) -> Mat4 {
         let dim = self.dimensions.x.max(self.dimensions.y);
         Mat4::screen(self.position, dim, dim)
     }
@@ -212,9 +211,22 @@ impl Room {
             // let dim = hall.dimensions;
             // let dim = dim.x.max(dim.y);
             // Mat4::screen(hall.position, dim, dim)
-            hall.view_room()
+            hall.view()
         } else {
             panic!()
         }
     }
+
+    // Room types
+
+    pub fn spawn(man: &mut EntityManager) -> Self {
+        let mut ret = Self::new(man, Vec2::new(0.0, 0.0), Vec2::new(20.0, 20.0));
+        ret.make_hall(man, Direction::Down, 6, 18);
+        ret
+    }
+
+    // pub fn spires(man: &mut EntityManager) -> Self {
+    //     let mut rng = thread_rng();
+    // }
+
 }

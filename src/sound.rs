@@ -80,7 +80,8 @@ impl SoundManager {
             // don't forget to add new sounds to the conversion table in try_from
             let sound = Sounds::try_from(sound_id).unwrap();
             let mut wav = Wav::default();
-            wav.load_mem(sound.resource()).expect("can't find sound file");
+            wav.load_mem(sound.resource())
+                .expect("can't find sound file");
             sounds.push(wav);
         }
 

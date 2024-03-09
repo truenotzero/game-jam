@@ -154,8 +154,6 @@ pub mod snake {
     }
 
     pub fn grow(entity: &mut EntityView) {
-        entity.get_sound().play(Sounds::Eat);
-
         entity.with_mut_property("smoothing", |s| *s = true);
         let mut len = entity.get_body_length();
         if len == 0 {
@@ -295,7 +293,7 @@ pub mod fruit {
         entity::{Components, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{instanced::Tile, RenderManager},
+        render::{instanced::Tile, RenderManager}, sound::Sounds,
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {
@@ -305,6 +303,7 @@ pub mod fruit {
                 Components::Position,
                 Components::Collider,
                 Components::Spawner,
+                Components::Sound,
             ],
         );
 
@@ -347,6 +346,7 @@ pub mod fruit {
         entity.request_spawn(Box::new(|man| {
             new(man);
         }));
+        entity.get_sound().play(Sounds::Eat);
         entity.kill();
     }
 }
@@ -449,7 +449,9 @@ pub mod trigger {
         if this.with_property("predicate", |p: &fn(&mut EntityView) -> bool| p(entity)) {
             this.with_mut_property("notify", |n: &mut Sender<()>| {
                 let _ = n.send(());
-            })
+            });
+
+            this.kill();
         }
     }
 }

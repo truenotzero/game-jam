@@ -3,7 +3,8 @@ use std::mem::{offset_of, size_of};
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Vec2, Vec3}, resources,
+    math::{Vec2, Vec3},
+    resources,
 };
 
 pub struct Fireball {

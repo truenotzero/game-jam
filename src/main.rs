@@ -1,6 +1,8 @@
+#![windows_subsystem = "windows"]
+
 use std::mem;
 
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use std::time::{Duration, Instant};
 
@@ -40,6 +42,9 @@ const SCALE_FACTOR: f32 = 0.85;
 // mouse is now in world coordinates
 
 struct Game<'a> {
+    pan_to_hall_trigger: Option<Receiver<()>>,
+    pan_to_room_trigger: Option<Receiver<()>>,
+
     // mouse position in world coordinates
     mouse_x: f32,
     mouse_y: f32,
@@ -75,7 +80,7 @@ impl<'a> Game<'a> {
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
         let room = world::Room::spawn(&mut man);
-        let starting_view = room.view_room();
+        let starting_view = room.view();
 
         let common_uniforms = UniformBuffer::new(ctx);
         common_uniforms.bind_buffer_base(0);
@@ -91,6 +96,9 @@ impl<'a> Game<'a> {
         renderer.add_renderer(ShieldManager::new(ctx, 512));
 
         Self {
+            pan_to_hall_trigger: None,
+            pan_to_room_trigger: None,
+
             mouse_x: 0.0,
             mouse_y: 0.0,
             view_width,
@@ -98,7 +106,7 @@ impl<'a> Game<'a> {
 
             lerping: false,
             accum: Duration::ZERO,
-            current_view: room.view_room(),
+            current_view: room.view(),
             next_view: normal,
 
             room,
@@ -115,6 +123,12 @@ impl<'a> Game<'a> {
     fn draw(&mut self) {
         self.man.draw(&mut self.renderer, self.palette);
         self.renderer.draw();
+    }
+
+    fn move_camera(&mut self, new_view: Mat4) {
+        self.next_view = new_view;
+        self.lerping = true;
+        archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
     }
 
     fn tick(&mut self, dt: Duration) {
@@ -136,6 +150,24 @@ impl<'a> Game<'a> {
         }
 
         self.man.tick(dt);
+
+        if self
+            .pan_to_hall_trigger
+            .as_ref()
+            .map(|rx| rx.try_recv().is_ok())
+            .unwrap_or_default()
+        {
+            self.move_camera(self.room.view_hall());
+        }
+
+        if self
+            .pan_to_room_trigger
+            .as_ref()
+            .map(|rx| rx.try_recv().is_ok())
+            .unwrap_or_default()
+        {
+            self.move_camera(self.room.view());
+        }
     }
 
     fn key_press(&mut self, key: Key, is_down: bool) {
@@ -149,10 +181,12 @@ impl<'a> Game<'a> {
                 archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             Key::B => {
-                self.room.open_hallway(&mut self.man);
-                self.next_view = self.room.view_hall();
-                self.lerping = true;
-                archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
+                let (hall, room) = self.room.open_hallway(&mut self.man);
+                self.pan_to_hall_trigger = Some(hall);
+                self.pan_to_room_trigger = Some(room);
+                // self.next_view = self.room.view_hall();
+                // self.lerping = true;
+                //archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             _ => (),
         }
@@ -210,7 +244,12 @@ impl Window {
         let height = SCALE_FACTOR * dim as f32;
 
         let (mut window, event_pump) = glfw
-            .create_window(width as u32, height as u32, "Snek", glfw::WindowMode::Windowed)
+            .create_window(
+                width as u32,
+                height as u32,
+                "Snek",
+                glfw::WindowMode::Windowed,
+            )
             .expect("Failed to create window");
 
         // window setup
@@ -224,7 +263,6 @@ impl Window {
         let pos_x = (screen_width - width) / 2.0;
         let pos_y = (screen_height - height) / 2.0;
         window.set_pos(pos_x as i32, pos_y as i32);
-
 
         let draw_context = DrawContext::create(&mut window);
 

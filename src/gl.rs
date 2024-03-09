@@ -11,7 +11,8 @@ use glfw::Context;
 use crate::{
     common::{Error, Result},
     math::{Mat4, Vec3, Vec4},
-    render::instanced::{Tile, Vertex}, resources,
+    render::instanced::{Tile, Vertex},
+    resources,
 };
 
 pub mod raw {
@@ -262,15 +263,18 @@ impl<'a> Shader<'a> {
     }
 
     pub fn from_resource(ctx: &'a DrawContext, resource: resources::Shader) -> Result<Self> {
-        const TYPES: [raw::GLenum; 3] = [raw::VERTEX_SHADER, raw::FRAGMENT_SHADER, raw::GEOMETRY_SHADER];
-
+        const TYPES: [raw::GLenum; 3] = [
+            raw::VERTEX_SHADER,
+            raw::FRAGMENT_SHADER,
+            raw::GEOMETRY_SHADER,
+        ];
 
         let this = Self::new(ctx);
         for (idx, source) in resource.into_iter().enumerate() {
             let type_ = TYPES[idx];
             this.load(source, type_)?;
         }
-        
+
         this.compile()
     }
 
@@ -287,7 +291,7 @@ impl<'a> Shader<'a> {
             None
         }
     }
-    
+
     fn _load_from_file(&self, filepath: &Path) -> Result<()> {
         let shader_src = read_to_string(filepath).map_err(|_| Error::FileNotFound)?;
 
