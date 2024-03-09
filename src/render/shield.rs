@@ -1,4 +1,4 @@
-use std::mem::{offset_of, size_of};
+use std::mem::{self, offset_of, size_of};
 
 use crate::{
     common::{as_bytes, AsBytes},
@@ -12,7 +12,8 @@ pub struct Shield {
     pos: Vec2,
     col: Vec3,
     radius: f32,
-    num_sides: i32,
+    is_fix: u8,
+    num_sides: u8,
     sides0: Vec2,
     sides1: Vec2,
     sides2: Vec2,
@@ -20,11 +21,12 @@ pub struct Shield {
 }
 
 impl Shield {
-    pub fn new(pos: Vec2, col: Vec3, radius: f32) -> Self {
+    pub fn new(pos: Vec2, col: Vec3, is_fix: bool, radius: f32) -> Self {
         Self {
             pos,
             col,
             radius,
+            is_fix: if is_fix { 1 } else { 0 },
             num_sides: 0,
             sides0: Default::default(),
             sides1: Default::default(),
@@ -128,8 +130,9 @@ pub struct ShieldManager<'a> {
     vbo: ArrayBuffer<'a>,
     shader: Shader<'a>,
 
-    num_shields: usize,
     max_shields: usize,
+    shields: Vec<Shield>,
+    fixes: Vec<Shield>,
 }
 
 impl<'a> ShieldManager<'a> {
@@ -164,9 +167,10 @@ impl<'a> ShieldManager<'a> {
                 size_of::<Shield>(),
                 offset_of!(Shield, radius),
             )
+            .push_int_attrib(1, gl::raw::BYTE, size_of::<Shield>(), offset_of!(Shield, is_fix))
             .push_int_attrib(
                 1,
-                gl::raw::INT,
+                gl::raw::BYTE,
                 size_of::<Shield>(),
                 offset_of!(Shield, num_sides),
             )
@@ -200,35 +204,56 @@ impl<'a> ShieldManager<'a> {
             );
 
         // let shader = Shader::from_file(ctx, Path::new("res/shaders/shield")).unwrap();
-        let shader = Shader::from_resource(ctx, resources::shaders::SHIELD).unwrap();
+        let shader = Shader::from_resource(ctx, resources::shaders::SHIELD).expect("shield shader should compile properly");
         Self {
             vao: vao.build(),
             vbo,
             shader,
 
-            num_shields: 0,
             max_shields,
+            
+            shields: Vec::new(),
+            fixes: Vec::new(),
         }
     }
 
-    pub fn push(&mut self, shield: Shield) {
-        if self.num_shields == self.max_shields {
-            panic!("max shields")
+    fn update_buffer(&mut self, is_fixes: bool) -> gl::raw::GLint {
+        let buf = if is_fixes { &mut self.fixes } else { &mut self.shields };
+        for (idx, shield) in buf.iter_mut().enumerate() {
+            self.vbo
+                .update(idx * size_of::<Shield>(), unsafe {
+                    shield.as_bytes()
+                });
         }
 
-        self.vbo
-            .update(self.num_shields * size_of::<Shield>(), unsafe {
-                shield.as_bytes()
-            });
+        let len = buf.len() as _;
+        buf.clear();
 
-        self.num_shields += 1;
+        len
+    }
+
+    pub fn push(&mut self, shield: Shield) {
+        if shield.is_fix == 1 {
+            self.fixes.push(shield);
+        } else {
+            self.shields.push(shield);
+        }
     }
 
     pub fn draw(&mut self) {
         self.vao.apply();
         self.shader.apply();
-        gl::call!(DrawArrays(POINTS, 0, self.num_shields as _));
+        
+        let fixes = self.update_buffer(true);
+        if fixes > 0 {
+            
+            gl::call!(DrawArrays(POINTS, 0, fixes));
+        }
 
-        self.num_shields = 0;
+        let shields = self.update_buffer(false);
+        if shields > 0 {
+            gl::call!(DrawArrays(POINTS, 0, shields));
+        }
+
     }
 }

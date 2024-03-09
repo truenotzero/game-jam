@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 
 use std::mem;
 
@@ -263,6 +263,9 @@ impl Window {
         let draw_context = DrawContext::create(&mut window);
 
         // set up opengl stuff here
+        // backface culling & apparently I can't specify vertices
+        gl::call!(FrontFace(CW));
+        gl::call!(Enable(CULL_FACE));
         // enable depth buffer
         gl::call!(Enable(DEPTH_TEST));
         // enable blending

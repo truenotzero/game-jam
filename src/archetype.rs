@@ -73,13 +73,14 @@ pub mod snake {
             Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
             Position, SelfDestruct,
         },
-        math::{Mat4, Vec2, Vec3},
+        math::{f32_eq, Mat4, Vec2, Vec3},
         palette::{self, Palette},
         render::{instanced::Tile, shield::Shield, RenderManager},
         sound::Sounds,
     };
 
-    const STEP: Duration = Duration::from_millis(150);
+    // const STEP: Duration = Duration::from_millis(150);
+    const STEP: Duration = Duration::from_millis(1500);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
         let id = man.spawn(
@@ -102,6 +103,7 @@ pub mod snake {
         snake.set_position(Vec3::new(0.0, 0.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
 
+        snake.new_property("score", 0);
         snake.new_property("smoothing", false);
         snake.new_property("shield", false);
 
@@ -111,24 +113,24 @@ pub mod snake {
     fn body(
         man: &mut EntityManager,
         position: Position,
-        direction: Direction,
+        neighbors: Vec<Direction>,
         lifetime: SelfDestruct,
     ) -> EntityId {
         let id = man.spawn(
             Entities::SnakeBody,
             &[
                 Components::Position,
-                Components::Direction,
                 Components::Collider,
                 Components::SelfDestruct,
                 Components::Timer,
+                Components::Properties,
             ],
         );
 
         let mut body = man.view(id).unwrap();
         body.set_position(position);
-        body.set_direction(direction);
         body.set_self_destruct(lifetime);
+        body.new_property( "neighbors", neighbors);
         body.access_timer(|t| t.set_threshold(STEP));
 
         id
@@ -154,6 +156,8 @@ pub mod snake {
     }
 
     pub fn grow(entity: &mut EntityView) {
+        entity.with_mut_property("score", |s: &mut i32| *s += 1);
+
         entity.with_mut_property("smoothing", |s| *s = true);
         let mut len = entity.get_body_length();
         if len == 0 {
@@ -170,7 +174,7 @@ pub mod snake {
         entity.set_animation(Animation::Idle);
 
         let pos = entity.get_position();
-        let dir = entity.get_direction();
+        let last_dir = entity.get_direction();
         let len = entity.get_body_length();
         let mouse = entity.get_mouse();
 
@@ -197,24 +201,58 @@ pub mod snake {
                     _ => continue,
                 };
 
-                if new_dir != dir && new_dir != dir.reverse() {
+                if new_dir != last_dir && new_dir != last_dir.reverse() {
                     entity.set_direction(new_dir);
                     entity.get_sound().play(Sounds::Move);
                     break new_dir;
                 }
             }
 
-            break dir;
+            break last_dir;
         };
 
         if len > 0 {
             entity.request_spawn(Box::new(move |man| {
-                body(man, pos, dir, len);
+                body(man, pos, vec![dir, last_dir.reverse()], len);
             }));
         }
 
         let new_pos = pos + Vec3::from((dir.into(), 0.0));
         entity.set_position(new_pos);
+    }
+
+    fn draw_shield(pos: Vec3, neighbors: &[Direction], renderer: &mut RenderManager, palette: Palette) {
+        use Direction as D;
+
+        let pos = Vec2::from(pos);
+
+        let shield = [D::Up, D::Down, D::Left, D::Right]
+            .into_iter()
+            .filter(|d| !neighbors.contains(d))
+            .fold(
+                Shield::new(pos, palette.snake, false, 0.4),
+                |shield, d| shield.push_side(d.into()),
+            )
+            ;
+
+        renderer.push(shield);
+
+        if neighbors.len() == 2 {
+            let n1 = neighbors[0].into();
+            let n2 = neighbors[1].into();
+
+            if f32_eq(Vec2::dot(n1, n2), 0.0) {
+                // the vectors are at a right angle
+                // fix should be applied
+                let fix = Shield::new(pos, palette.snake, true, 0.4)
+                    .push_side(n1)
+                    .push_side(n2)
+                ;
+                
+                renderer.push(fix);
+            }
+
+        }
     }
 
     pub fn draw(mut entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
@@ -236,51 +274,57 @@ pub mod snake {
                 col: palette.snake,
             });
 
-            let facing = entity.get_direction();
-            let facing = if facing == Direction::None {
-                Direction::Up
-            } else {
-                facing
-            };
-            let shield = Shield::new(pd.into(), palette.snake, 0.4)
-                .push_side(facing.into())
-                .push_side(facing.right().into())
-                .push_side(facing.right().reverse().into());
+            // let shield = Shield::new(pd.into(), palette.snake, 0.4)
+            //     .push_side(facing.into())
+            //     .push_side(facing.right().into())
+            //     .push_side(facing.right().reverse().into())
+            // ;
 
-            let shield = if entity.get_body_length() == 0 {
-                shield.push_side(facing.reverse().into())
-            } else {
-                shield
+            // let shield = if entity.get_body_length() == 0 {
+            //     shield.push_side(facing.reverse().into())
+            // } else {
+            //     shield
+            // };
+
+            let mut neighbors = Vec::new();
+             if entity.get_body_length() != 0 {
+                neighbors.push(entity.get_direction().reverse());
             };
 
-            renderer.push(shield);
+            draw_shield(pd, &neighbors, renderer, palette);
         } else if entity.get_self_destruct() == 1 {
             // tail
             let pct = entity.access_timer(|t| t.progress());
-            let delta = Vec3::from((pct * Vec2::from(entity.get_direction()), 0.0));
+            let direction = entity.with_property("neighbors", |n: &Vec<Direction>| n[0]);
+            let delta = Vec3::from((pct * Vec2::from(direction), 0.0));
             let pd = pos + delta;
             renderer.push(Tile {
                 transform: Mat4::translate(pd),
                 col: palette.snake,
             });
-            let back = entity.get_direction().reverse();
-            renderer.push(
-                Shield::new(pd.into(), palette.snake, 0.4)
-                    .push_side(back.into())
-                    .push_side(back.right().into())
-                    .push_side(back.right().reverse().into()),
-            );
+
+            draw_shield(pd, &[direction], renderer, palette);
+            // renderer.push(
+            //     Shield::new(pd.into(), palette.snake, 0.4)
+            //         .push_side(back.into())
+            //         .push_side(back.right().into())
+            //         .push_side(back.right().reverse().into()),
+            // );
+
         } else {
             // body
             renderer.push(Tile {
                 transform: Mat4::translate(pos),
                 col: palette.snake,
             });
-            renderer.push(
-                Shield::new(pos.into(), palette.snake, 0.4)
-                    .push_side(entity.get_direction().right().into())
-                    .push_side(entity.get_direction().right().reverse().into()),
-            );
+            // renderer.push(
+            //     Shield::new(pos.into(), palette.snake, 0.4)
+            //         .push_side(entity.get_direction().right().into())
+            //         .push_side(entity.get_direction().right().reverse().into()),
+            // );
+            entity.with_property("neighbors", |neighbors: &Vec<Direction>| {
+                draw_shield(pos, neighbors, renderer, palette);
+            });
             pos.z = -0.1 * entity.get_self_destruct() as f32;
         }
     }

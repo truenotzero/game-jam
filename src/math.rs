@@ -67,6 +67,10 @@ impl Vec2 {
     pub fn floor(self) -> Self {
         Self::new(self.x.floor(), self.y.floor())
     }
+
+    pub fn dot(lhs: Self, rhs: Self) -> f32 {
+        lhs.x * rhs.x + lhs.y * rhs.y
+    }
 }
 
 impl PartialEq for Vec2 {
