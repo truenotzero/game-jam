@@ -1,9 +1,10 @@
-use std::{
-    collections::HashMap,
+use std::collections::HashMap;
+
+use self::{
+    fireball::{Fireball, FireballManager},
+    instanced::{InstancedShapeManager, Tile},
+    shield::{Shield, ShieldManager},
 };
-
-use self::{fireball::{Fireball, FireballManager}, instanced::{InstancedShapeManager, Tile}, shield::{Shield, ShieldManager}};
-
 
 pub mod fireball;
 pub mod instanced;
@@ -80,17 +81,17 @@ impl<'a> Renderer<'a> {
                 if let Element::Tile(t) = element {
                     tile.push(t)
                 }
-            },
+            }
             Renderer::Fireball(fire) => {
                 if let Element::Fireball(f) = element {
                     fire.push(f)
                 }
-            },
+            }
             Renderer::Shield(shield) => {
                 if let Element::Shield(s) = element {
                     shield.push(s)
                 }
-            },
+            }
         }
     }
 
@@ -120,9 +121,18 @@ impl<'a> RenderManager<'a> {
 
     pub fn push(&mut self, element: impl Into<Element>) {
         match element.into() {
-            Element::Tile(tile) => self.renderers.get_mut(&RenderType::Tile).map(|r| r.push(tile)),
-            Element::Fireball(fire) => self.renderers.get_mut(&RenderType::Fireball).map(|r| r.push(fire)),
-            Element::Shield(shield) => self.renderers.get_mut(&RenderType::Shield).map(|r| r.push(shield)),
+            Element::Tile(tile) => self
+                .renderers
+                .get_mut(&RenderType::Tile)
+                .map(|r| r.push(tile)),
+            Element::Fireball(fire) => self
+                .renderers
+                .get_mut(&RenderType::Fireball)
+                .map(|r| r.push(fire)),
+            Element::Shield(shield) => self
+                .renderers
+                .get_mut(&RenderType::Shield)
+                .map(|r| r.push(shield)),
         };
     }
 
@@ -130,7 +140,11 @@ impl<'a> RenderManager<'a> {
         // for transparency to work properly
         // render back to front
         self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
-        self.renderers.get_mut(&RenderType::Shield).map(|r| r.draw());
-        self.renderers.get_mut(&RenderType::Fireball).map(|r| r.draw());
+        self.renderers
+            .get_mut(&RenderType::Shield)
+            .map(|r| r.draw());
+        self.renderers
+            .get_mut(&RenderType::Fireball)
+            .map(|r| r.draw());
     }
 }

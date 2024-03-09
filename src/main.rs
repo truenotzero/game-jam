@@ -17,6 +17,7 @@ use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::RenderManager;
 use soloud::{AudioExt, LoadExt, Soloud, Speech, Wav};
+use sound::{SoundManager, Sounds};
 
 use crate::math::{Mat4, Vec4};
 
@@ -28,6 +29,7 @@ mod math;
 mod noise;
 mod palette;
 mod render;
+mod sound;
 mod time;
 mod world;
 
@@ -56,6 +58,7 @@ struct Game<'a> {
     mouse_tx: Sender<Vec2>,
     palette: Palette,
     renderer: RenderManager<'a>,
+    sound: SoundManager,
     common_uniforms: UniformBuffer<'a>,
 }
 
@@ -68,7 +71,8 @@ impl<'a> Game<'a> {
 
         let (keystroke_tx, keystroke_rx) = mpsc::channel();
         let (mouse_tx, mouse_rx) = mpsc::channel();
-        let mut man = EntityManager::new(keystroke_rx, mouse_rx);
+        let sound = SoundManager::new();
+        let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.clone());
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
         let room = world::Room::spawn(&mut man);
@@ -84,7 +88,6 @@ impl<'a> Game<'a> {
         let mut renderer = RenderManager::new();
         renderer.add_renderer(tile_renderer);
         renderer.add_renderer(fireball_renderer);
-
 
         renderer.add_renderer(ShieldManager::new(ctx, 512));
 
@@ -103,15 +106,13 @@ impl<'a> Game<'a> {
             mouse_tx,
             palette: palette::dark_pastel(),
             renderer,
+            sound,
             common_uniforms,
         }
     }
 
     fn draw(&mut self) {
-        self.man.draw(
-            &mut self.renderer,
-            self.palette,
-        );
+        self.man.draw(&mut self.renderer, self.palette);
         self.renderer.draw();
     }
 
@@ -149,16 +150,7 @@ impl<'a> Game<'a> {
                 self.room.open_hallway(&mut self.man);
                 self.next_view = self.room.view_hall();
                 self.lerping = true;
-            },
-            // Key::Space => {
-            //     archetype::fireball::new(
-            //         &mut self.man,
-            //         PaletteKey::Snake,
-            //         0.5,
-            //         Position::default(),
-            //         Vec3::new(self.mouse_x, self.mouse_y, 0.0),
-            //     );
-            // }
+            }
             _ => (),
         }
 
@@ -270,24 +262,7 @@ impl Window {
     }
 }
 
-fn play<P: AsRef<Path>>(path: P) {
-    let sound_name = path.as_ref();
-    let mut sl = Soloud::default().unwrap();
-
-    let mut wav = Wav::default();
-    wav.load(sound_name).unwrap();
-    sl.play(&wav);
-    let len = wav.length();
-
-    while sl.active_voice_count() > 0 {
-        sleep(Duration::from_secs_f64(len));
-    }
-}
-
 fn main() {
-    play("res/sounds/die.wav");
-    play("res/sounds/eat.wav");
-
     let window = Window::new();
     window.run()
 }

@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-    any::{self, Any}, cell::{Ref, RefCell, RefMut}, collections::HashMap, f32::consts::E, iter, rc::Rc, sync::mpsc::{self, Receiver, Sender}, time::Duration
+    any::{self, Any}, cell::{Ref, RefCell, RefMut}, collections::HashMap, f32::consts::E, hash::DefaultHasher, iter, process::exit, rc::Rc, sync::mpsc::{self, Receiver, Sender}, thread::sleep, time::Duration
 };
 
 use glfw::Key;
@@ -10,6 +10,7 @@ use crate::{
     math::{Vec2, Vec3},
     palette::{Palette, PaletteKey},
     render::{fireball::FireballManager, instanced::InstancedShapeManager, RenderManager},
+    sound::{SoundManager, Sounds},
     time,
 };
 
@@ -43,12 +44,7 @@ impl Entities {
         }
     }
 
-    pub fn draw(
-        self,
-        entity: EntityView,
-        renderer: &mut RenderManager,
-        palette: Palette,
-    ) {
+    pub fn draw(self, entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
         use crate::archetype::*;
 
         match self {
@@ -77,6 +73,7 @@ pub enum Components {
     Color,
     Speed,
     Properties,
+    Sound,
 }
 
 impl fmt::Display for Components {
@@ -192,10 +189,10 @@ impl Collider {
         if let Some((head, fruit)) = Self::is_between(E::SnakeHead, E::Fruit, e1, e2) {
             fruit::respawn(fruit);
             snake::grow(head);
-        } else if let Some((_head, _body)) = Self::is_between(E::SnakeHead, E::SnakeBody, e1, e2) {
-            panic!("Game over");
-        } else if let Some((_head, _wall)) = Self::is_between(E::SnakeHead, E::Wall, e1, e2) {
-            panic!("Game over");
+        } else if let Some((head, _body)) = Self::is_between(E::SnakeHead, E::SnakeBody, e1, e2) {
+            snake::die_sequence(head);
+        } else if let Some((head, _wall)) = Self::is_between(E::SnakeHead, E::Wall, e1, e2) {
+            snake::die_sequence(head);
         } else if let Some((fireball, _wall)) = Self::is_between(E::Fireball, E::Wall, e1, e2) {
             // TODO
             fireball.kill();
@@ -257,6 +254,7 @@ pub enum Animation {
 
 pub type Color = PaletteKey;
 pub type Speed = f32;
+pub type Sound = SoundManager;
 
 pub type EntityId = usize;
 
@@ -305,22 +303,36 @@ impl<'m> EntityView<'m> {
     fn unwrap<T>(&self, t: Option<T>, component: Components) -> T {
         t.expect(&format!("{} should have {}", self.type_, component))
     }
+    
+    pub fn get_sound(&self) -> Sound {
+        self.unwrap(self.storage().get_sound(self.id), Components::Sound)
+    }
 
     pub fn new_property(&self, name: &'static str, value: impl Any) {
         self.storage_mut().new_property(self.id, name, value)
     }
 
     pub fn with_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&P) -> R) -> R {
-        let prop = self.storage().get_property(self.id, name).expect("entity should have specified property");
+        let prop = self
+            .storage()
+            .get_property(self.id, name)
+            .expect("entity should have specified property");
         let any = prop.borrow();
-        let p = any.downcast_ref().expect("property should have matching type");
+        let p = any
+            .downcast_ref()
+            .expect("property should have matching type");
         f(p)
     }
 
     pub fn with_mut_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&mut P) -> R) -> R {
-        let prop = self.storage().get_property(self.id, name).expect("entity should have specified property");
+        let prop = self
+            .storage()
+            .get_property(self.id, name)
+            .expect("entity should have specified property");
         let mut any = prop.borrow_mut();
-        let p = any.downcast_mut().expect("property should have matching type");
+        let p = any
+            .downcast_mut()
+            .expect("property should have matching type");
         f(p)
     }
 
@@ -430,11 +442,9 @@ type Storage<T> = HashMap<EntityId, T>;
 type EntityManagerRequest = Box<dyn FnOnce(&mut EntityManager)>;
 
 struct Storages {
-    entities: Vec<EntityId>,
-    types: Vec<Entities>,
-
     spawn_requests: Sender<EntityManagerRequest>,
     collisions: Sender<(EntityId, EntityId)>,
+    sound: Sound,
 
     positions: Storage<Position>,
     directions: Storage<Direction>,
@@ -449,19 +459,19 @@ struct Storages {
     colors: Storage<Color>,
     speeds: Storage<Speed>,
     properties: Storage<Properties>,
+    sounds: Storage<Sound>,
 }
 
 impl Storages {
     pub fn new(
         spawn_requests: Sender<EntityManagerRequest>,
         collisions: Sender<(EntityId, EntityId)>,
+        sound: Sound,
     ) -> Self {
         Self {
-            entities: Default::default(),
-            types: Default::default(),
-
             spawn_requests,
             collisions,
+            sound,
 
             positions: Default::default(),
             directions: Default::default(),
@@ -476,35 +486,27 @@ impl Storages {
             colors: Default::default(),
             speeds: Default::default(),
             properties: Default::default(),
+            sounds: Default::default(),
         }
     }
 
     pub fn kill(&mut self, entity: EntityId) {
         // binary search is legal because entity id is ever-increasing
         // and insertion happens only at the end (thus keeping the vector sorted)
-        if let Ok(index) = self.entities.binary_search(&entity) {
-            self.entities.remove(index);
-            self.types.remove(index);
-
-            self.positions.remove(&entity);
-            self.directions.remove(&entity);
-            self.colliders.remove(&entity);
-            self.keyboards.remove(&entity);
-            self.body_lengths.remove(&entity);
-            self.self_destructs.remove(&entity);
-            self.scales.remove(&entity);
-            self.timers.remove(&entity);
-            self.spawners.remove(&entity);
-            self.animations.remove(&entity);
-            self.colors.remove(&entity);
-            self.speeds.remove(&entity);
-            self.properties.remove(&entity);
-        }
-    }
-
-    pub fn set_type(&mut self, entity: EntityId, type_: Entities) {
-        self.entities.push(entity);
-        self.types.push(type_);
+        self.positions.remove(&entity);
+        self.directions.remove(&entity);
+        self.colliders.remove(&entity);
+        self.keyboards.remove(&entity);
+        self.body_lengths.remove(&entity);
+        self.self_destructs.remove(&entity);
+        self.scales.remove(&entity);
+        self.timers.remove(&entity);
+        self.spawners.remove(&entity);
+        self.animations.remove(&entity);
+        self.colors.remove(&entity);
+        self.speeds.remove(&entity);
+        self.properties.remove(&entity);
+        self.sounds.remove(&entity);
     }
 
     pub fn add_component(&mut self, entity: EntityId, component: Components) {
@@ -526,16 +528,30 @@ impl Storages {
             C::Animation => self.set_animation(entity, Animation::default()),
             C::Color => self.set_color(entity, Color::default()),
             C::Speed => self.set_speed(entity, Speed::default()),
-            C::Properties => { self.properties.insert(entity, Default::default()); },
+            C::Properties => {
+                self.properties.insert(entity, Default::default());
+            }
+            C::Sound => {
+                self.sounds.insert(entity, self.sound.clone());
+            }
         }
+    }
+    
+    pub fn get_sound(&self, entity: EntityId) -> Option<Sound> {
+        self.sounds.get(&entity).cloned()
     }
 
     pub fn new_property(&mut self, entity: EntityId, name: &'static str, value: impl Any) {
-        self.properties.get_mut(&entity).map(|p| p.insert(name, Rc::new(RefCell::new(value))));
+        self.properties
+            .get_mut(&entity)
+            .map(|p| p.insert(name, Rc::new(RefCell::new(value))));
     }
 
     pub fn get_property(&self, entity: EntityId, name: &str) -> Option<Property> {
-        self.properties.get(&entity).and_then(|m| m.get(name)).cloned()
+        self.properties
+            .get(&entity)
+            .and_then(|m| m.get(name))
+            .cloned()
     }
 
     pub fn get_position(&self, entity: EntityId) -> Option<Position> {
@@ -664,7 +680,7 @@ impl Storages {
 
 pub struct EntityManager {
     tracker: EntityId,
-entities: Vec<EntityId>,
+    entities: Vec<EntityId>,
     types: Vec<Entities>,
 
     keystrokes: Receiver<Key>,
@@ -677,14 +693,14 @@ entities: Vec<EntityId>,
 }
 
 impl EntityManager {
-    pub fn new(keystroke_rx: Receiver<Key>, mouse_rx: Receiver<Vec2>) -> Self {
+    pub fn new(keystroke_rx: Receiver<Key>, mouse_rx: Receiver<Vec2>, sound: Sound) -> Self {
         let (spawn_tx, spawn_rx) = mpsc::channel();
         let (collisions_tx, collisions_rx) = mpsc::channel();
         let (dying_tx, dying_rx) = mpsc::channel();
 
         Self {
             tracker: Default::default(),
-entities: Default::default(),
+            entities: Default::default(),
             types: Default::default(),
 
             keystrokes: keystroke_rx,
@@ -693,7 +709,7 @@ entities: Default::default(),
             collision_requests: collisions_rx,
             dying_rx,
             dying_tx,
-            storage: RefCell::new(Storages::new(spawn_tx, collisions_tx)),
+            storage: RefCell::new(Storages::new(spawn_tx, collisions_tx, sound)),
         }
     }
 
@@ -704,18 +720,18 @@ entities: Default::default(),
         self.entities.push(id);
         self.types.push(type_);
 
-            for c in components {
-if let Ok(mut storage) = self.storage.try_borrow_mut() {
+        for c in components {
+            if let Ok(mut storage) = self.storage.try_borrow_mut() {
                 storage.add_component(id, *c);
             }
         }
 
         id
     }
-    
-    pub fn iter_mut(&mut self) -> impl Iterator<Item=EntityView> {
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = EntityView> {
         self.entities.iter().filter_map(|&id| self.view(id))
-            }
+    }
 
     pub fn kill(&mut self, entity: EntityId) {
         // binary search is legal because entity id is ever-increasing
@@ -727,7 +743,7 @@ if let Ok(mut storage) = self.storage.try_borrow_mut() {
             // remove components if they exist
             if let Ok(mut storage) = self.storage.try_borrow_mut() {
                 storage.kill(entity);
-}
+            }
         }
     }
 
@@ -778,15 +794,10 @@ if let Ok(mut storage) = self.storage.try_borrow_mut() {
         }
     }
 
-    pub fn draw(
-        &mut self,
-        renderer: &mut RenderManager,
-        palette: Palette,
-    ) {
+    pub fn draw(&mut self, renderer: &mut RenderManager, palette: Palette) {
         for id in self.entities.iter().cloned() {
             let view = self.view(id).unwrap();
-            view.which()
-                .draw(view, renderer, palette);
+            view.which().draw(view, renderer, palette);
         }
     }
 }

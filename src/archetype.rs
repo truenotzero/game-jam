@@ -3,7 +3,10 @@ pub mod wall {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::Mat4,
         palette::Palette,
-        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
+        render::{
+            instanced::{InstancedShapeManager, Tile},
+            RenderManager,
+        },
     };
 
     pub fn new(man: &mut EntityManager, position: Position) -> EntityId {
@@ -33,7 +36,10 @@ pub mod background {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
+        render::{
+            instanced::{InstancedShapeManager, Tile},
+            RenderManager,
+        },
     };
 
     pub fn new(man: &mut EntityManager, position: Position, dimensions: Vec2) -> EntityId {
@@ -65,13 +71,21 @@ pub mod background {
 }
 
 pub mod snake {
-    use std::time::Duration;
+    use std::{process::exit, thread::sleep, time::Duration};
 
     use crate::{
-        archetype::fireball, entity::{
+        archetype::fireball,
+        entity::{
             Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
             Position, SelfDestruct,
-        }, math::{ease::UnitBezier, Mat4, Vec2, Vec3}, palette::{self, Palette}, render::{instanced::{InstancedShapeManager, Tile}, shield::Shield, RenderManager}
+        },
+        math::{ease::UnitBezier, Mat4, Vec2, Vec3},
+        palette::{self, Palette},
+        render::{
+            instanced::{InstancedShapeManager, Tile},
+            shield::Shield,
+            RenderManager,
+        }, sound::Sounds,
     };
 
     const STEP: Duration = Duration::from_millis(150);
@@ -89,13 +103,13 @@ pub mod snake {
                 Components::Spawner,
                 Components::Animation,
                 Components::Properties,
+                Components::Sound,
             ],
         );
 
         let mut snake = man.view(id).unwrap();
         snake.set_position(Vec3::new(0.0, 0.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
-
 
         snake.new_property("smoothing", false);
         snake.new_property("shield", false);
@@ -142,7 +156,15 @@ pub mod snake {
         }
     }
 
+    pub fn die_sequence(head: &mut EntityView) {
+            head.get_sound().play(Sounds::Die);
+            sleep(Duration::from_millis(750));
+            exit(0);
+    }
+
     pub fn grow(entity: &mut EntityView) {
+        entity.get_sound().play(Sounds::Eat);
+
         entity.with_mut_property("smoothing", |s| *s = true);
         let mut len = entity.get_body_length();
         if len == 0 {
@@ -155,7 +177,7 @@ pub mod snake {
         if !entity.access_timer(|t| t.tick(dt)) {
             return;
         }
-        
+
         entity.set_animation(Animation::Idle);
 
         let pos = entity.get_position();
@@ -173,10 +195,16 @@ pub mod snake {
                     K::D | K::Right => Direction::Right,
                     K::Space => {
                         entity.request_spawn(Box::new(move |man| {
-                            fireball::new(man, palette::PaletteKey::Snake, 0.5, pos, Vec3::from((mouse, 0.0)));
+                            fireball::new(
+                                man,
+                                palette::PaletteKey::Snake,
+                                0.5,
+                                pos,
+                                Vec3::from((mouse, 0.0)),
+                            );
                         }));
                         continue;
-                    },
+                    }
                     _ => continue,
                 };
 
@@ -206,7 +234,7 @@ pub mod snake {
             let pct = entity.access_timer(|t| t.progress());
 
             let smoothing = entity.with_property("smoothing", |&s| s);
-            let delta = if smoothing { 
+            let delta = if smoothing {
                 (pct - 1.0) * Vec3::from(entity.get_direction())
             } else {
                 Vec3::default()
@@ -227,8 +255,7 @@ pub mod snake {
             let shield = Shield::new(pd.into(), palette.snake, 0.4)
                 .push_side(facing.into())
                 .push_side(facing.right().into())
-                .push_side(facing.right().reverse().into())
-            ;
+                .push_side(facing.right().reverse().into());
 
             let shield = if entity.get_body_length() == 0 {
                 shield.push_side(facing.reverse().into())
@@ -237,7 +264,6 @@ pub mod snake {
             };
 
             renderer.push(shield);
-
         } else if entity.get_self_destruct() == 1 {
             // tail
             let pct = entity.access_timer(|t| t.progress());
@@ -248,10 +274,11 @@ pub mod snake {
                 col: palette.snake,
             });
             let back = entity.get_direction().reverse();
-            renderer.push(Shield::new(pd.into(), palette.snake, 0.4)
-                .push_side(back.into())
-                .push_side(back.right().into())
-                .push_side(back.right().reverse().into())
+            renderer.push(
+                Shield::new(pd.into(), palette.snake, 0.4)
+                    .push_side(back.into())
+                    .push_side(back.right().into())
+                    .push_side(back.right().reverse().into()),
             );
         } else {
             // body
@@ -259,9 +286,10 @@ pub mod snake {
                 transform: Mat4::translate(pos),
                 col: palette.snake,
             });
-            renderer.push(Shield::new(pos.into(), palette.snake, 0.4)
-                .push_side(entity.get_direction().right().into())
-                .push_side(entity.get_direction().right().reverse().into())
+            renderer.push(
+                Shield::new(pos.into(), palette.snake, 0.4)
+                    .push_side(entity.get_direction().right().into())
+                    .push_side(entity.get_direction().right().reverse().into()),
             );
             pos.z = -0.1 * entity.get_self_destruct() as f32;
         }
@@ -275,7 +303,10 @@ pub mod fruit {
         entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView, Position},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{instanced::{InstancedShapeManager, Tile}, RenderManager},
+        render::{
+            instanced::{InstancedShapeManager, Tile},
+            RenderManager,
+        },
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {
@@ -340,7 +371,10 @@ pub mod fireball {
         },
         math::{Vec2, Vec3},
         palette::{Palette, PaletteKey},
-        render::{fireball::{Fireball, FireballManager}, RenderManager},
+        render::{
+            fireball::{Fireball, FireballManager},
+            RenderManager,
+        },
     };
 
     pub fn new(
@@ -391,14 +425,25 @@ pub mod fireball {
 pub mod trigger {
     use std::sync::mpsc::Sender;
 
-    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Vec2, Vec3}};
+    use crate::{
+        entity::{Components, Entities, EntityId, EntityManager, EntityView},
+        math::{Vec2, Vec3},
+    };
 
-    pub fn new(man: &mut EntityManager, position: Vec2, predicate: fn(&mut EntityView) -> bool, notify: Sender<()>) -> EntityId {
-        let id = man.spawn(Entities::Trigger, &[
-            Components::Position,
-            Components::Collider,
-            Components::Properties,
-        ]);
+    pub fn new(
+        man: &mut EntityManager,
+        position: Vec2,
+        predicate: fn(&mut EntityView) -> bool,
+        notify: Sender<()>,
+    ) -> EntityId {
+        let id = man.spawn(
+            Entities::Trigger,
+            &[
+                Components::Position,
+                Components::Collider,
+                Components::Properties,
+            ],
+        );
 
         let mut trigger = man.view(id).unwrap();
         trigger.set_position(Vec3::from((position, 0.0)));
@@ -409,9 +454,11 @@ pub mod trigger {
     }
 
     pub fn activated(this: &mut EntityView, entity: &mut EntityView) {
-        if entity.which() == Entities::Trigger { return; }
+        if entity.which() == Entities::Trigger {
+            return;
+        }
         if this.with_property("predicate", |p: &fn(&mut EntityView) -> bool| p(entity)) {
-            this.with_mut_property("notify", |n: &mut Sender<()>| { 
+            this.with_mut_property("notify", |n: &mut Sender<()>| {
                 let _ = n.send(());
             })
         }

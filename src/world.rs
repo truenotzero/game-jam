@@ -1,5 +1,8 @@
 use core::panic;
-use std::{sync::mpsc::{self, Receiver, Sender}, thread};
+use std::{
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+};
 
 use crate::{
     archetype,
@@ -38,7 +41,11 @@ impl Room {
         let mut parts = Vec::new();
         // make the background
         let bgpos = position - 0.5 * dimensions;
-        let bg = archetype::background::new(man, Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH), dimensions);
+        let bg = archetype::background::new(
+            man,
+            Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH),
+            dimensions,
+        );
         parts.push(bg);
 
         // wall it off
@@ -69,7 +76,13 @@ impl Room {
         }
     }
 
-    fn make_hall(&mut self, man: &mut EntityManager, direction: Direction, width: usize, length: usize) {
+    fn make_hall(
+        &mut self,
+        man: &mut EntityManager,
+        direction: Direction,
+        width: usize,
+        length: usize,
+    ) {
         // add walls
         let width = (width + 2) as f32;
         let length = length as f32;
@@ -82,19 +95,19 @@ impl Room {
                     self.position.x, // + offset
                     self.position.y + 0.5 * d.y * (self.dimensions.y + length),
                 );
-                let dim= Vec2::new(width , length);
+                let dim = Vec2::new(width, length);
 
                 (pos, dim)
-            },
+            }
             Direction::Left | Direction::Right => {
                 let pos = Vec2::new(
                     self.position.x + 0.5 * d.x * (self.dimensions.x + length),
                     self.position.y, // + offset
                 );
-                let dim= Vec2::new(length , width);
+                let dim = Vec2::new(length, width);
 
                 (pos, dim)
-            },
+            }
             _ => panic!(),
         };
 
@@ -104,32 +117,38 @@ impl Room {
         self.width = width;
     }
 
-    fn replace_walls_with_triggers(&self, man: &mut EntityManager, side: Direction, hole_size: f32, tx: Sender<()>) {
+    fn replace_walls_with_triggers(
+        &self,
+        man: &mut EntityManager,
+        side: Direction,
+        hole_size: f32,
+        tx: Sender<()>,
+    ) {
         let (xs, xe, ys, ye) = match side {
             Direction::Up => {
                 let y = self.position.y - 0.5 * self.dimensions.y;
                 let xs = self.position.x - 0.5 * hole_size;
                 let xe = self.position.x + 0.5 * hole_size - 1.0;
                 (xs, xe, y, y)
-            },
+            }
             Direction::Down => {
                 let y = self.position.y + 0.5 * self.dimensions.y - 1.0;
                 let xs = self.position.x - 0.5 * hole_size;
                 let xe = self.position.x + 0.5 * hole_size - 1.0;
                 (xs, xe, y, y)
-            },
+            }
             Direction::Left => {
                 let x = self.position.x - 0.5 * self.dimensions.x;
                 let ys = self.position.y - 0.5 * hole_size;
                 let ye = self.position.y + 0.5 * hole_size - 1.0;
                 (x, x, ys, ye)
-            },
+            }
             Direction::Right => {
                 let x = self.position.x + 0.5 * self.dimensions.x - 1.0;
                 let ys = self.position.y - 0.5 * hole_size;
                 let ye = self.position.y + 0.5 * hole_size - 1.0;
                 (x, x, ys, ye)
-            },
+            }
             _ => panic!(),
         };
 
@@ -155,7 +174,12 @@ impl Room {
         let (tx_far, rx_far) = mpsc::channel();
 
         hall.replace_walls_with_triggers(man, self.direction, self.width, tx_far.clone());
-        hall.replace_walls_with_triggers(man, self.direction.reverse(), self.width, tx_near.clone());
+        hall.replace_walls_with_triggers(
+            man,
+            self.direction.reverse(),
+            self.width,
+            tx_near.clone(),
+        );
         self.replace_walls_with_triggers(man, self.direction, self.width, tx_near.clone());
 
         (rx_near, rx_far)

@@ -31,10 +31,22 @@ pub struct Vec2 {
 as_bytes!(Vec2);
 
 impl Vec2 {
-    pub const UP: Vec2 = Self { x: 0.0f32, y: 1.0f32 };
-    pub const DOWN: Vec2 = Self { x: 0.0f32, y: -1.0f32 };
-    pub const LEFT: Vec2 = Self { x: -1.0f32, y: 0.0f32 };
-    pub const RIGHT: Vec2 = Self { x: 1.0f32, y: 0.0f32 };
+    pub const UP: Vec2 = Self {
+        x: 0.0f32,
+        y: 1.0f32,
+    };
+    pub const DOWN: Vec2 = Self {
+        x: 0.0f32,
+        y: -1.0f32,
+    };
+    pub const LEFT: Vec2 = Self {
+        x: -1.0f32,
+        y: 0.0f32,
+    };
+    pub const RIGHT: Vec2 = Self {
+        x: 1.0f32,
+        y: 0.0f32,
+    };
 
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }

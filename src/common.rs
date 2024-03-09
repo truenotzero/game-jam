@@ -6,6 +6,7 @@ pub enum Error {
     ShaderCompilationError(String),
     InstanceLimit,
     BadDirection,
+    InvalidSoundId,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
