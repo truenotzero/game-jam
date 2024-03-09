@@ -1,8 +1,6 @@
 use core::panic;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use rand::thread_rng;
-
 use crate::{
     archetype,
     entity::{Direction, EntityId, EntityManager, Position, Scale},
@@ -157,7 +155,7 @@ impl Room {
 
                 if xs <= pos.x && pos.x <= xe && ys <= pos.y && pos.y <= ye {
                     wall.kill();
-                    
+
                     if let Some(tx) = tx.clone() {
                         archetype::trigger::new(man, pos.into(), |_| true, tx);
                     }
@@ -178,12 +176,7 @@ impl Room {
         let (tx_far, rx_far) = mpsc::channel();
 
         hall.replace_walls(man, self.direction, self.width, Some(tx_far.clone()));
-        hall.replace_walls(
-            man,
-            self.direction.reverse(),
-            self.width,
-            None,
-        );
+        hall.replace_walls(man, self.direction.reverse(), self.width, None);
         self.replace_walls(man, self.direction, self.width, Some(tx_near.clone()));
 
         (rx_near, rx_far)
@@ -228,5 +221,4 @@ impl Room {
     // pub fn spires(man: &mut EntityManager) -> Self {
     //     let mut rng = thread_rng();
     // }
-
 }

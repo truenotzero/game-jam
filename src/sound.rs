@@ -60,7 +60,6 @@ impl TryFrom<u8> for Sounds {
     }
 }
 
-#[derive(Clone)]
 pub struct SoundManager {
     tx: Sender<Sounds>,
 }
@@ -69,34 +68,53 @@ impl SoundManager {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Self::start_engine(rx);
+        let _handle = Self::start_engine(rx);
         Self { tx }
     }
 
     fn start_engine(sound_queue: Receiver<Sounds>) {
-        // load sounds
-        let mut sounds = Vec::with_capacity(Sounds::_NumSounds as _);
-        for sound_id in 0..(Sounds::_NumSounds as u8) {
-            // don't forget to add new sounds to the conversion table in try_from
-            let sound = Sounds::try_from(sound_id).unwrap();
-            let mut wav = Wav::default();
-            wav.load_mem(sound.resource())
-                .expect("can't find sound file");
-            sounds.push(wav);
-        }
-
-        let sl = Soloud::default().unwrap();
         // run the engine
-        thread::spawn(move || loop {
-            if let Ok(sound) = sound_queue.recv() {
-                sl.play(&sounds[sound as usize]);
-                sl.voice_count();
-            } else {
-                return;
+        thread::spawn(move || {
+            let sl = Soloud::default().unwrap();
+            // load sounds
+            let mut sounds = Vec::with_capacity(Sounds::_NumSounds as _);
+            for sound_id in 0..(Sounds::_NumSounds as u8) {
+                // don't forget to add new sounds to the conversion table in try_from
+                let sound = Sounds::try_from(sound_id).unwrap();
+                let mut wav = Wav::default();
+                wav.load_mem(sound.resource())
+                    .expect("can't find sound file");
+                sounds.push(wav);
+            }
+
+            loop {
+                if let Ok(sound) = sound_queue.recv() {
+                        sl.play(&sounds[sound as usize]);
+                        sl.voice_count();
+                } else {
+                    return;
+                }
             }
         });
     }
 
+    pub fn play(&self, sound: Sounds) {
+        let _ = self.tx.send(sound);
+    }
+
+    pub fn player(&self) -> Player {
+        Player {
+            tx: self.tx.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Player {
+    tx: Sender<Sounds>,
+}
+
+impl Player {
     pub fn play(&self, sound: Sounds) {
         let _ = self.tx.send(sound);
     }

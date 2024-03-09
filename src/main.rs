@@ -62,7 +62,7 @@ struct Game<'a> {
     mouse_tx: Sender<Vec2>,
     palette: Palette,
     renderer: RenderManager<'a>,
-    _sound: SoundManager,
+    sound: SoundManager,
     common_uniforms: UniformBuffer<'a>,
 }
 
@@ -76,7 +76,7 @@ impl<'a> Game<'a> {
         let (keystroke_tx, keystroke_rx) = mpsc::channel();
         let (mouse_tx, mouse_rx) = mpsc::channel();
         let sound = SoundManager::new();
-        let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.clone());
+        let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.player());
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
         let room = world::Room::spawn(&mut man);
@@ -115,7 +115,7 @@ impl<'a> Game<'a> {
             mouse_tx,
             palette: palette::dark_pastel(),
             renderer,
-            _sound: sound,
+            sound,
             common_uniforms,
         }
     }
@@ -128,7 +128,7 @@ impl<'a> Game<'a> {
     fn move_camera(&mut self, new_view: Mat4) {
         self.next_view = new_view;
         self.lerping = true;
-        archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
+        self.sound.play(Sounds::CameraPan);
     }
 
     fn tick(&mut self, dt: Duration) {
@@ -178,15 +178,11 @@ impl<'a> Game<'a> {
         match key {
             Key::G => {
                 self.lerping = true;
-                archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             Key::B => {
                 let (hall, room) = self.room.open_hallway(&mut self.man);
                 self.pan_to_hall_trigger = Some(hall);
                 self.pan_to_room_trigger = Some(room);
-                // self.next_view = self.room.view_hall();
-                // self.lerping = true;
-                //archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             _ => (),
         }
@@ -247,7 +243,7 @@ impl Window {
             .create_window(
                 width as u32,
                 height as u32,
-                "snek",
+                "snek?",
                 glfw::WindowMode::Windowed,
             )
             .expect("Failed to create window");

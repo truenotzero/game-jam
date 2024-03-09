@@ -293,7 +293,8 @@ pub mod fruit {
         entity::{Components, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{instanced::Tile, RenderManager}, sound::Sounds,
+        render::{instanced::Tile, RenderManager},
+        sound::Sounds,
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {

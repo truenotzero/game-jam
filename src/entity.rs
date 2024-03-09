@@ -14,7 +14,7 @@ use crate::{
     math::{Vec2, Vec3},
     palette::{Palette, PaletteKey},
     render::RenderManager,
-    sound::SoundManager,
+    sound::Player,
     time,
 };
 
@@ -260,7 +260,7 @@ pub enum Animation {
 
 pub type Color = PaletteKey;
 pub type Speed = f32;
-pub type Sound = SoundManager;
+pub type Sound = Player;
 
 pub type EntityId = usize;
 
