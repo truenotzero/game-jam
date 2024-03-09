@@ -66,7 +66,7 @@ pub enum Components {
     Position,
     Direction,
     Collider,
-    Keyboard,
+    Input,
     BodyLength,
     SelfDestruct,
     Scale,
@@ -201,25 +201,39 @@ impl Collider {
     }
 }
 
-pub struct Keyboard {
-    tx: Sender<Key>,
-    rx: Receiver<Key>,
+pub struct Input {
+    key_tx: Sender<Key>,
+    key_rx: Receiver<Key>,
+
+    mouse_pos: Vec2,
 }
 
-impl Default for Keyboard {
+impl Default for Input {
     fn default() -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self { tx, rx }
+        let (key_tx, key_rx) = mpsc::channel();
+        Self {
+            key_tx,
+            key_rx,
+            mouse_pos: Default::default(),
+        }
     }
 }
 
-impl Keyboard {
+impl Input {
     pub fn press(&mut self, key: Key) {
-        let _ = self.tx.send(key);
+        let _ = self.key_tx.send(key);
     }
 
-    pub fn get(&mut self) -> Option<Key> {
-        self.rx.try_recv().ok()
+    pub fn mouse_move(&mut self, pos: Vec2) {
+        self.mouse_pos = pos;
+    }
+
+    pub fn get_key(&mut self) -> Option<Key> {
+        self.key_rx.try_recv().ok()
+    }
+
+    pub fn get_mouse(&self) -> Vec2 {
+        self.mouse_pos
     }
 }
 
@@ -292,8 +306,18 @@ impl<'m> EntityView<'m> {
         self.storage_mut().new_property(self.id, name, value)
     }
 
-    pub fn get_property(&self, name: &str) -> Option<Property> {
-        self.storage().get_property(self.id, name)
+    pub fn with_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&P) -> R) -> R {
+        let prop = self.storage().get_property(self.id, name).expect("entity should have specified property");
+        let any = prop.borrow();
+        let p = any.downcast_ref().expect("property should have matching type");
+        f(p)
+    }
+
+    pub fn with_mut_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&mut P) -> R) -> R {
+        let prop = self.storage().get_property(self.id, name).expect("entity should have specified property");
+        let mut any = prop.borrow_mut();
+        let p = any.downcast_mut().expect("property should have matching type");
+        f(p)
     }
 
     pub fn get_position(&self) -> Position {
@@ -342,7 +366,11 @@ impl<'m> EntityView<'m> {
     }
 
     pub fn get_key(&mut self) -> Option<Key> {
-        self.unwrap(self.storage_mut().get_key(self.id), Components::Keyboard)
+        self.unwrap(self.storage_mut().get_key(self.id), Components::Input)
+    }
+
+    pub fn get_mouse(&self) -> Vec2 {
+        self.unwrap(self.storage().get_mouse(self.id), Components::Input)
     }
 
     pub fn get_animation(&self) -> Animation {
@@ -398,13 +426,16 @@ type Storage<T> = HashMap<EntityId, T>;
 type EntityManagerRequest = Box<dyn FnOnce(&mut EntityManager)>;
 
 struct Storages {
+    entities: Vec<EntityId>,
+    types: Vec<Entities>,
+
     spawn_requests: Sender<EntityManagerRequest>,
     collisions: Sender<(EntityId, EntityId)>,
 
     positions: Storage<Position>,
     directions: Storage<Direction>,
     colliders: Storage<Collider>,
-    keyboards: Storage<Keyboard>,
+    keyboards: Storage<Input>,
     body_lengths: Storage<BodyLength>,
     self_destructs: Storage<SelfDestruct>,
     scales: Storage<Scale>,
@@ -422,6 +453,9 @@ impl Storages {
         collisions: Sender<(EntityId, EntityId)>,
     ) -> Self {
         Self {
+            entities: Default::default(),
+            types: Default::default(),
+
             spawn_requests,
             collisions,
 
@@ -442,19 +476,31 @@ impl Storages {
     }
 
     pub fn kill(&mut self, entity: EntityId) {
-        self.positions.remove(&entity);
-        self.directions.remove(&entity);
-        self.colliders.remove(&entity);
-        self.keyboards.remove(&entity);
-        self.body_lengths.remove(&entity);
-        self.self_destructs.remove(&entity);
-        self.scales.remove(&entity);
-        self.timers.remove(&entity);
-        self.spawners.remove(&entity);
-        self.animations.remove(&entity);
-        self.colors.remove(&entity);
-        self.speeds.remove(&entity);
-        self.properties.remove(&entity);
+        // binary search is legal because entity id is ever-increasing
+        // and insertion happens only at the end (thus keeping the vector sorted)
+        if let Ok(index) = self.entities.binary_search(&entity) {
+            self.entities.remove(index);
+            self.types.remove(index);
+
+            self.positions.remove(&entity);
+            self.directions.remove(&entity);
+            self.colliders.remove(&entity);
+            self.keyboards.remove(&entity);
+            self.body_lengths.remove(&entity);
+            self.self_destructs.remove(&entity);
+            self.scales.remove(&entity);
+            self.timers.remove(&entity);
+            self.spawners.remove(&entity);
+            self.animations.remove(&entity);
+            self.colors.remove(&entity);
+            self.speeds.remove(&entity);
+            self.properties.remove(&entity);
+        }
+    }
+
+    pub fn set_type(&mut self, entity: EntityId, type_: Entities) {
+        self.entities.push(entity);
+        self.types.push(type_);
     }
 
     pub fn add_component(&mut self, entity: EntityId, component: Components) {
@@ -463,7 +509,7 @@ impl Storages {
             C::Position => self.set_position(entity, Position::default()),
             C::Direction => self.set_direction(entity, Direction::default()),
             C::Collider => self.add_collider(entity),
-            C::Keyboard => self.add_keyboard(entity),
+            C::Input => self.add_keyboard(entity),
             C::BodyLength => self.set_body_length(entity, 0),
             C::SelfDestruct => self.set_self_destruct(entity, 0),
             C::Scale => self.set_scale(entity, Scale::diagonal(1.0)),
@@ -525,16 +571,26 @@ impl Storages {
     }
 
     pub fn add_keyboard(&mut self, entity: EntityId) {
-        self.keyboards.insert(entity, Keyboard::default());
+        self.keyboards.insert(entity, Input::default());
     }
 
     pub fn get_key(&mut self, entity: EntityId) -> Option<Option<Key>> {
-        self.keyboards.get_mut(&entity).map(|kb| kb.get())
+        self.keyboards.get_mut(&entity).map(|kb| kb.get_key())
+    }
+
+    pub fn get_mouse(&self, entity: EntityId) -> Option<Vec2> {
+        self.keyboards.get(&entity).map(|k| k.get_mouse())
     }
 
     pub fn key_pressed(&mut self, key: Key) {
         for kb in self.keyboards.values_mut() {
             kb.press(key);
+        }
+    }
+
+    pub fn mouse_moved(&mut self, mouse: Vec2) {
+        for m in self.keyboards.values_mut() {
+            m.mouse_move(mouse);
         }
     }
 
@@ -605,10 +661,11 @@ impl Storages {
 
 pub struct EntityManager {
     tracker: EntityId,
-    entities: Vec<EntityId>,
+entities: Vec<EntityId>,
     types: Vec<Entities>,
 
     keystrokes: Receiver<Key>,
+    mouse_movements: Receiver<Vec2>,
     spawn_requests: Receiver<EntityManagerRequest>,
     collision_requests: Receiver<(EntityId, EntityId)>,
     dying_rx: Receiver<EntityId>,
@@ -617,17 +674,18 @@ pub struct EntityManager {
 }
 
 impl EntityManager {
-    pub fn new(keystroke_rx: Receiver<Key>) -> Self {
+    pub fn new(keystroke_rx: Receiver<Key>, mouse_rx: Receiver<Vec2>) -> Self {
         let (spawn_tx, spawn_rx) = mpsc::channel();
         let (collisions_tx, collisions_rx) = mpsc::channel();
         let (dying_tx, dying_rx) = mpsc::channel();
 
         Self {
             tracker: Default::default(),
-            entities: Default::default(),
+entities: Default::default(),
             types: Default::default(),
 
             keystrokes: keystroke_rx,
+            mouse_movements: mouse_rx,
             spawn_requests: spawn_rx,
             collision_requests: collisions_rx,
             dying_rx,
@@ -643,18 +701,18 @@ impl EntityManager {
         self.entities.push(id);
         self.types.push(type_);
 
-        for c in components {
-            if let Ok(mut storage) = self.storage.try_borrow_mut() {
+            for c in components {
+if let Ok(mut storage) = self.storage.try_borrow_mut() {
                 storage.add_component(id, *c);
             }
         }
 
         id
     }
-
+    
     pub fn iter_mut(&mut self) -> impl Iterator<Item=EntityView> {
         self.entities.iter().filter_map(|&id| self.view(id))
-    }
+            }
 
     pub fn kill(&mut self, entity: EntityId) {
         // binary search is legal because entity id is ever-increasing
@@ -666,7 +724,7 @@ impl EntityManager {
             // remove components if they exist
             if let Ok(mut storage) = self.storage.try_borrow_mut() {
                 storage.kill(entity);
-            }
+}
         }
     }
 
@@ -684,6 +742,11 @@ impl EntityManager {
         // handle keystrokes
         while let Ok(key) = self.keystrokes.try_recv() {
             self.storage.borrow_mut().key_pressed(key);
+        }
+
+        // hanlde mouse movement
+        while let Ok(mouse) = self.mouse_movements.try_recv() {
+            self.storage.borrow_mut().mouse_moved(mouse);
         }
 
         // tick entities

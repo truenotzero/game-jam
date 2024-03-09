@@ -49,6 +49,7 @@ struct Game<'a> {
     room: world::Room,
     man: EntityManager,
     keystroke_tx: Sender<Key>,
+    mouse_tx: Sender<Vec2>,
     palette: Palette,
     renderer: RenderManager<'a>,
     common_uniforms: UniformBuffer<'a>,
@@ -62,7 +63,8 @@ impl<'a> Game<'a> {
         let fireball_renderer = FireballManager::new(ctx, 512);
 
         let (keystroke_tx, keystroke_rx) = mpsc::channel();
-        let mut man = EntityManager::new(keystroke_rx);
+        let (mouse_tx, mouse_rx) = mpsc::channel();
+        let mut man = EntityManager::new(keystroke_rx, mouse_rx);
         archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
         let room = world::Room::spawn(&mut man);
@@ -94,6 +96,7 @@ impl<'a> Game<'a> {
             room,
             man,
             keystroke_tx,
+            mouse_tx,
             palette: palette::dark_pastel(),
             renderer,
             common_uniforms,
@@ -143,15 +146,15 @@ impl<'a> Game<'a> {
                 self.next_view = self.room.view_hall();
                 self.lerping = true;
             },
-            Key::Space => {
-                archetype::fireball::new(
-                    &mut self.man,
-                    PaletteKey::Snake,
-                    0.5,
-                    Position::default(),
-                    Vec3::new(self.mouse_x, self.mouse_y, 0.0),
-                );
-            }
+            // Key::Space => {
+            //     archetype::fireball::new(
+            //         &mut self.man,
+            //         PaletteKey::Snake,
+            //         0.5,
+            //         Position::default(),
+            //         Vec3::new(self.mouse_x, self.mouse_y, 0.0),
+            //     );
+            // }
             _ => (),
         }
 
@@ -176,6 +179,8 @@ impl<'a> Game<'a> {
         let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(x, y, 0.0));
         self.mouse_x = x;
         self.mouse_y = -y;
+
+        let _ = self.mouse_tx.send(Vec2::new(x, -y));
     }
 }
 

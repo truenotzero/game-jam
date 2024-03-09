@@ -65,7 +65,7 @@ impl<'a> From<ShieldManager<'a>> for Renderer<'a> {
 }
 
 impl<'a> Renderer<'a> {
-    pub fn render_type(&self) -> RenderType {
+    fn render_type(&self) -> RenderType {
         match self {
             Renderer::Tile(_) => RenderType::Tile,
             Renderer::Fireball(_) => RenderType::Fireball,
@@ -130,7 +130,7 @@ impl<'a> RenderManager<'a> {
         // for transparency to work properly
         // render back to front
         self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
-        self.renderers.get_mut(&RenderType::Fireball).map(|r| r.draw());
         self.renderers.get_mut(&RenderType::Shield).map(|r| r.draw());
+        self.renderers.get_mut(&RenderType::Fireball).map(|r| r.draw());
     }
 }

@@ -15,7 +15,7 @@ out vec2 vsides[4];
 void main() {
     // fix shield's position to center instead of top-left
     // this keeps uv coords (in the frag shader) centered however
-    gl_Position = vec4(aPos + vec2(0.5, 0.5), -0.9, 1.0);
+    gl_Position = vec4(aPos + vec2(0.5, 0.5), -0.8, 1.0);
 
     vshieldCol = aCol;
     vradius = aRadius;

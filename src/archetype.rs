@@ -68,16 +68,13 @@ pub mod snake {
     use std::time::Duration;
 
     use crate::{
-        entity::{
+        archetype::fireball, entity::{
             Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
             Position, SelfDestruct,
-        },
-        math::{ease::UnitBezier, Mat4, Vec2, Vec3},
-        palette::Palette,
-        render::{instanced::{InstancedShapeManager, Tile}, shield::Shield, RenderManager},
+        }, math::{ease::UnitBezier, Mat4, Vec2, Vec3}, palette::{self, Palette}, render::{instanced::{InstancedShapeManager, Tile}, shield::Shield, RenderManager}
     };
 
-    const STEP: Duration = Duration::from_millis(100);
+    const STEP: Duration = Duration::from_millis(150);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
         let id = man.spawn(
@@ -86,7 +83,7 @@ pub mod snake {
                 Components::Position,
                 Components::Direction,
                 Components::Collider,
-                Components::Keyboard,
+                Components::Input,
                 Components::BodyLength,
                 Components::Timer,
                 Components::Spawner,
@@ -98,7 +95,10 @@ pub mod snake {
         let mut snake = man.view(id).unwrap();
         snake.set_position(Vec3::new(0.0, 0.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
-        
+
+
+        snake.new_property("smoothing", false);
+        snake.new_property("shield", false);
 
         id
     }
@@ -143,7 +143,7 @@ pub mod snake {
     }
 
     pub fn grow(entity: &mut EntityView) {
-        entity.set_animation(Animation::Growing);
+        entity.with_mut_property("smoothing", |s| *s = true);
         let mut len = entity.get_body_length();
         if len == 0 {
             len += 1;
@@ -155,12 +155,13 @@ pub mod snake {
         if !entity.access_timer(|t| t.tick(dt)) {
             return;
         }
-
+        
         entity.set_animation(Animation::Idle);
 
         let pos = entity.get_position();
         let dir = entity.get_direction();
         let len = entity.get_body_length();
+        let mouse = entity.get_mouse();
 
         let dir = loop {
             if let Some(k) = entity.get_key() {
@@ -170,6 +171,12 @@ pub mod snake {
                     K::A | K::Left => Direction::Left,
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
+                    K::Space => {
+                        entity.request_spawn(Box::new(move |man| {
+                            fireball::new(man, palette::PaletteKey::Snake, 0.5, pos, Vec3::from((mouse, 0.0)));
+                        }));
+                        continue;
+                    },
                     _ => continue,
                 };
 
@@ -198,7 +205,13 @@ pub mod snake {
         if entity.which() == Entities::SnakeHead {
             let pct = entity.access_timer(|t| t.progress());
 
-            let delta = (pct - 1.0) * Vec3::from(entity.get_direction());
+            let smoothing = entity.with_property("smoothing", |&s| s);
+            let delta = if smoothing { 
+                (pct - 1.0) * Vec3::from(entity.get_direction())
+            } else {
+                Vec3::default()
+            };
+
             let pd = pos + delta;
             renderer.push(Tile {
                 transform: Mat4::translate(pd),
