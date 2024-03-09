@@ -1,6 +1,11 @@
 use core::fmt;
 use std::{
-    any::Any, cell::{Ref, RefCell, RefMut}, collections::HashMap, rc::Rc, sync::mpsc::{self, Receiver, Sender}, time::Duration
+    any::Any,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+    sync::mpsc::{self, Receiver, Sender},
+    time::Duration,
 };
 
 use glfw::Key;
@@ -13,8 +18,10 @@ use crate::{
     time,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Entities {
+    #[default]
+    Basic,
     Background,
     Wall,
     SnakeHead,
@@ -302,7 +309,7 @@ impl<'m> EntityView<'m> {
     fn unwrap<T>(&self, t: Option<T>, component: Components) -> T {
         t.expect(&format!("{} should have {}", self.type_, component))
     }
-    
+
     pub fn get_sound(&self) -> Sound {
         self.unwrap(self.storage().get_sound(self.id), Components::Sound)
     }
@@ -389,7 +396,10 @@ impl<'m> EntityView<'m> {
     }
 
     pub fn _get_animation(&self) -> Animation {
-        self.unwrap(self.storage()._get_animation(self.id), Components::Animation)
+        self.unwrap(
+            self.storage()._get_animation(self.id),
+            Components::Animation,
+        )
     }
 
     pub fn set_animation(&mut self, animation: Animation) {
@@ -535,7 +545,7 @@ impl Storages {
             }
         }
     }
-    
+
     pub fn get_sound(&self, entity: EntityId) -> Option<Sound> {
         self.sounds.get(&entity).cloned()
     }

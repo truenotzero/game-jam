@@ -1,12 +1,9 @@
-use std::{
-    mem::{offset_of, size_of},
-    path::Path,
-};
+use std::mem::{offset_of, size_of};
 
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Vec2, Vec3},
+    math::{Vec2, Vec3}, resources,
 };
 
 pub struct Fireball {
@@ -68,7 +65,8 @@ impl<'a> FireballManager<'a> {
             offset_of!(Fireball, radius) as _,
         ));
 
-        let shader = Shader::from_file(ctx, Path::new("res/shaders/fireball"))
+        // let shader = Shader::from_file(ctx, Path::new("res/shaders/fireball"))
+        let shader = Shader::from_resource(ctx, resources::shaders::FIREBALL)
             .expect("Fireball shader error");
 
         Self {

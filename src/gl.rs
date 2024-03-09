@@ -11,7 +11,7 @@ use glfw::Context;
 use crate::{
     common::{Error, Result},
     math::{Mat4, Vec3, Vec4},
-    render::instanced::{Tile, Vertex},
+    render::instanced::{Tile, Vertex}, resources,
 };
 
 pub mod raw {
@@ -59,7 +59,10 @@ impl DrawContext {
 
 type GlObjectId = raw::GLuint;
 
-pub struct GlObject<'a> { id: GlObjectId, _dc: &'a DrawContext, }
+pub struct GlObject<'a> {
+    id: GlObjectId,
+    _dc: &'a DrawContext,
+}
 
 pub struct Vao<'a>(GlObject<'a>);
 
@@ -71,7 +74,7 @@ impl<'a> Vao<'a> {
     }
 
     pub fn apply(&self) {
-        call!(BindVertexArray(self.0 .id));
+        call!(BindVertexArray(self.0.id));
     }
 
     pub fn bind_vertex_attribs(&self, vertex_data: &ArrayBuffer) {
@@ -158,7 +161,7 @@ impl<'a> Vao<'a> {
 
 impl<'a> Drop for Vao<'a> {
     fn drop(&mut self) {
-        call!(DeleteVertexArrays(1, &self.0 .id))
+        call!(DeleteVertexArrays(1, &self.0.id))
     }
 }
 
@@ -184,7 +187,7 @@ pub type UniformBuffer<'a> = Buffer<'a, { raw::UNIFORM_BUFFER }>;
 
 impl<'a> UniformBuffer<'a> {
     pub fn bind_buffer_base(&self, bind_point: raw::GLuint) {
-        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0 .id));
+        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0.id));
     }
 }
 
@@ -196,12 +199,12 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     }
 
     pub fn apply(&self) {
-        call!(BindBuffer(T, self.0 .id));
+        call!(BindBuffer(T, self.0.id));
     }
 
     fn init(&self, data_size: usize, data_ptr: *const u8, flags: buffer_flags::Type) {
         call!(NamedBufferStorage(
-            self.0 .id,
+            self.0.id,
             data_size as _,
             data_ptr.cast(),
             flags
@@ -219,7 +222,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     /// requires having passed the DYNAMIC_STORAGE flag in alloc
     pub fn update(&self, offset: usize, bytes: &[u8]) {
         call!(NamedBufferSubData(
-            self.0 .id,
+            self.0.id,
             offset as _,
             bytes.len() as _,
             bytes.as_ptr().cast()
@@ -229,7 +232,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
 
 impl<'a, const T: raw::GLenum> Drop for Buffer<'a, T> {
     fn drop(&mut self) {
-        call!(DeleteBuffers(1, &self.0 .id))
+        call!(DeleteBuffers(1, &self.0.id))
     }
 }
 
@@ -241,38 +244,51 @@ impl<'a> Shader<'a> {
         Self(GlObject { id, _dc: ctx })
     }
 
-    pub fn from_file(ctx: &'a DrawContext, path: &Path) -> Result<Self> {
+    pub fn _from_file(ctx: &'a DrawContext, path: &Path) -> Result<Self> {
         let this = Self::new(ctx);
 
         let mut path = path.with_extension("vert");
-        this.load(&path)?;
+        this._load_from_file(&path)?;
 
         path.set_extension("frag");
-        this.load(&path)?;
+        this._load_from_file(&path)?;
 
         path.set_extension("geom");
         if path.exists() {
-            this.load(&path)?;
+            this._load_from_file(&path)?;
         }
 
         this.compile()
     }
 
+    pub fn from_resource(ctx: &'a DrawContext, resource: resources::Shader) -> Result<Self> {
+        const TYPES: [raw::GLenum; 3] = [raw::VERTEX_SHADER, raw::FRAGMENT_SHADER, raw::GEOMETRY_SHADER];
+
+
+        let this = Self::new(ctx);
+        for (idx, source) in resource.into_iter().enumerate() {
+            let type_ = TYPES[idx];
+            this.load(source, type_)?;
+        }
+        
+        this.compile()
+    }
+
     pub fn apply(&self) {
-        call!(UseProgram(self.0 .id));
+        call!(UseProgram(self.0.id));
     }
 
     pub fn _locate_uniform(&self, name: &str) -> Option<raw::GLint> {
         let name = CString::new(name).expect("Bad uniform name");
-        let location = call!(GetUniformLocation(self.0 .id, name.as_ptr().cast()));
+        let location = call!(GetUniformLocation(self.0.id, name.as_ptr().cast()));
         if location != -1 {
             Some(location)
         } else {
             None
         }
     }
-
-    fn load(&self, filepath: &Path) -> Result<()> {
+    
+    fn _load_from_file(&self, filepath: &Path) -> Result<()> {
         let shader_src = read_to_string(filepath).map_err(|_| Error::FileNotFound)?;
 
         let extension = filepath.extension().ok_or(Error::BadShaderType)?;
@@ -284,6 +300,10 @@ impl<'a> Shader<'a> {
             _ => return Err(Error::BadShaderType),
         };
 
+        self.load(shader_src.as_bytes(), shader_type)
+    }
+
+    fn load(&self, shader_src: &[u8], shader_type: raw::GLenum) -> Result<()> {
         let shader = call!(CreateShader(shader_type));
         let source = shader_src.as_ptr().cast();
         let len = shader_src.len() as _;
@@ -308,24 +328,24 @@ impl<'a> Shader<'a> {
             return Err(Error::ShaderCompilationError(log));
         }
 
-        call!(AttachShader(self.0 .id, shader));
+        call!(AttachShader(self.0.id, shader));
 
         call!(DeleteShader(shader));
         Ok(())
     }
 
     fn compile(self) -> Result<Self> {
-        call!(LinkProgram(self.0 .id));
+        call!(LinkProgram(self.0.id));
 
         let mut ok = 0;
-        call!(GetProgramiv(self.0 .id, LINK_STATUS, &mut ok));
+        call!(GetProgramiv(self.0.id, LINK_STATUS, &mut ok));
         if ok != raw::TRUE as _ {
             let mut log_len = 0;
-            call!(GetProgramiv(self.0 .id, INFO_LOG_LENGTH, &mut log_len));
+            call!(GetProgramiv(self.0.id, INFO_LOG_LENGTH, &mut log_len));
             log_len -= 1; // no need for null terminator
             let mut log = vec![0u8; log_len as _];
             call!(GetProgramInfoLog(
-                self.0 .id,
+                self.0.id,
                 log_len,
                 null_mut(),
                 log.as_mut_ptr().cast()

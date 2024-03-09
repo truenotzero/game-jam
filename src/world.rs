@@ -5,6 +5,7 @@ use crate::{
     archetype,
     entity::{Direction, EntityId, EntityManager, Position, Scale},
     math::{Mat4, Vec2, Vec3, Vec4},
+    sound::Sounds,
 };
 
 const BACKGROUND_DEPTH: f32 = 0.9;
@@ -165,6 +166,9 @@ impl Room {
     /// the second triggers when the player is about to leave the hallway and enter the next room
     pub fn open_hallway(&self, man: &mut EntityManager) -> (Receiver<()>, Receiver<()>) {
         let hall = self.hall.as_ref().expect("should have hallway");
+
+        archetype::oneshot::play_sound(man, Sounds::RoomUnlocked);
+
         let (tx_near, rx_near) = mpsc::channel();
         let (tx_far, rx_far) = mpsc::channel();
 

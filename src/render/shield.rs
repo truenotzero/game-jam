@@ -1,12 +1,9 @@
-use std::{
-    mem::{offset_of, size_of},
-    path::Path,
-};
+use std::mem::{offset_of, size_of};
 
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Vec2, Vec3},
+    math::{Vec2, Vec3}, resources,
 };
 
 #[repr(C)]
@@ -201,7 +198,8 @@ impl<'a> ShieldManager<'a> {
                 offset_of!(Shield, sides3),
             );
 
-        let shader = Shader::from_file(ctx, Path::new("res/shaders/shield")).unwrap();
+        // let shader = Shader::from_file(ctx, Path::new("res/shaders/shield")).unwrap();
+        let shader = Shader::from_resource(ctx, resources::shaders::SHIELD).unwrap();
         Self {
             vao: vao.build(),
             vbo,

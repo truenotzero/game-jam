@@ -1,12 +1,14 @@
 use std::{
-    path::Path,
     sync::mpsc::{self, Receiver, Sender},
     thread,
 };
 
 use soloud::{AudioExt, LoadExt, Soloud, Wav};
 
-use crate::common::{Error, Result};
+use crate::{
+    common::{Error, Result},
+    resources::Resource,
+};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
@@ -14,20 +16,28 @@ pub enum Sounds {
     Die,
     Eat,
     ShieldUp,
+    Fireball,
+    Move,
+    RoomUnlocked,
+    CameraPan,
 
     _NumSounds,
 }
 
 impl Sounds {
-    fn path(self) -> &'static Path {
-        let path_string = match self {
-            Sounds::Die => "res/sounds/die.wav",
-            Sounds::Eat => "res/sounds/eat.wav",
-            Sounds::ShieldUp => "res/sounds/shield-up.wav",
-            Sounds::_NumSounds => panic!(),
-        };
+    fn resource(self) -> Resource {
+        use crate::resources::sounds::*;
+        match self {
+            Self::Die => DIE,
+            Self::Eat => EAT,
+            Self::ShieldUp => SHIELD_UP,
+            Self::Fireball => FIREBALL,
+            Self::Move => MOVE,
+            Self::RoomUnlocked => ROOM_UNLOCKED,
+            Self::CameraPan => CAMERA_PAN,
 
-        path_string.as_ref()
+            Self::_NumSounds => panic!(),
+        }
     }
 }
 
@@ -35,10 +45,16 @@ impl TryFrom<u8> for Sounds {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Sounds> {
+        use Sounds as S;
         Ok(match value {
-            0 => Sounds::Die,
-            1 => Sounds::Eat,
-            2 => Sounds::ShieldUp,
+            0 => S::Die,
+            1 => S::Eat,
+            2 => S::ShieldUp,
+            3 => S::Fireball,
+            4 => S::Move,
+            5 => S::RoomUnlocked,
+            6 => S::CameraPan,
+
             _ => Err(Error::InvalidSoundId)?,
         })
     }
@@ -64,7 +80,7 @@ impl SoundManager {
             // don't forget to add new sounds to the conversion table in try_from
             let sound = Sounds::try_from(sound_id).unwrap();
             let mut wav = Wav::default();
-            wav.load(sound.path()).expect("can't find sound file");
+            wav.load_mem(sound.resource()).expect("can't find sound file");
             sounds.push(wav);
         }
 

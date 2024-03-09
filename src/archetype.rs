@@ -3,10 +3,7 @@ pub mod wall {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::Mat4,
         palette::Palette,
-        render::{
-            instanced::Tile,
-            RenderManager,
-        },
+        render::{instanced::Tile, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager, position: Position) -> EntityId {
@@ -36,10 +33,7 @@ pub mod background {
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
         math::{Mat4, Vec2},
         palette::Palette,
-        render::{
-            instanced::Tile,
-            RenderManager,
-        },
+        render::{instanced::Tile, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager, position: Position, dimensions: Vec2) -> EntityId {
@@ -81,11 +75,8 @@ pub mod snake {
         },
         math::{Mat4, Vec2, Vec3},
         palette::{self, Palette},
-        render::{
-            instanced::Tile,
-            shield::Shield,
-            RenderManager,
-        }, sound::Sounds,
+        render::{instanced::Tile, shield::Shield, RenderManager},
+        sound::Sounds,
     };
 
     const STEP: Duration = Duration::from_millis(150);
@@ -157,9 +148,9 @@ pub mod snake {
     }
 
     pub fn die_sequence(head: &mut EntityView) {
-            head.get_sound().play(Sounds::Die);
-            sleep(Duration::from_millis(750));
-            exit(0);
+        head.get_sound().play(Sounds::Die);
+        sleep(Duration::from_millis(750));
+        exit(0);
     }
 
     pub fn grow(entity: &mut EntityView) {
@@ -210,6 +201,7 @@ pub mod snake {
 
                 if new_dir != dir && new_dir != dir.reverse() {
                     entity.set_direction(new_dir);
+                    entity.get_sound().play(Sounds::Move);
                     break new_dir;
                 }
             }
@@ -303,10 +295,7 @@ pub mod fruit {
         entity::{Components, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
-        render::{
-            instanced::Tile,
-            RenderManager,
-        },
+        render::{instanced::Tile, RenderManager},
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {
@@ -371,10 +360,8 @@ pub mod fireball {
         },
         math::Vec3,
         palette::Palette,
-        render::{
-            fireball::Fireball,
-            RenderManager,
-        },
+        render::{fireball::Fireball, RenderManager},
+        sound::Sounds,
     };
 
     pub fn new(
@@ -393,6 +380,7 @@ pub mod fireball {
                 Components::Speed,
                 Components::Scale,
                 Components::Color,
+                Components::Sound,
             ],
         );
 
@@ -403,6 +391,7 @@ pub mod fireball {
         fireball.set_speed(15.0);
         fireball.set_scale(radius.into());
         fireball.set_color(color);
+        fireball.get_sound().play(Sounds::Fireball);
 
         id
     }
@@ -462,5 +451,19 @@ pub mod trigger {
                 let _ = n.send(());
             })
         }
+    }
+}
+
+pub mod oneshot {
+    use crate::{
+        entity::{Components, Entities, EntityManager},
+        sound::Sounds,
+    };
+
+    pub fn play_sound(man: &mut EntityManager, sound: Sounds) {
+        let id = man.spawn(Entities::Basic, &[Components::Sound]);
+        let player = man.view(id).unwrap();
+        player.get_sound().play(sound);
+        man.kill(id);
     }
 }

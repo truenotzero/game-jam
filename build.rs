@@ -15,11 +15,4 @@ fn create_gl_bindings() {
 
 fn main() {
     create_gl_bindings();
-
-    // set env vars
-    let mut dir = env::current_dir().unwrap();
-
-    dir.push("res");
-    // create_resources(&dir);
-    dir.pop();
 }

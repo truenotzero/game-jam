@@ -1,6 +1,5 @@
 use std::mem;
 
-
 use std::sync::mpsc::{self, Sender};
 
 use std::time::{Duration, Instant};
@@ -16,7 +15,7 @@ use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::RenderManager;
-use sound::SoundManager;
+use sound::{SoundManager, Sounds};
 
 use crate::math::{Mat4, Vec4};
 
@@ -27,6 +26,7 @@ mod gl;
 mod math;
 mod palette;
 mod render;
+mod resources;
 mod sound;
 mod time;
 mod world;
@@ -143,11 +143,13 @@ impl<'a> Game<'a> {
         match key {
             Key::G => {
                 self.lerping = true;
+                archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             Key::B => {
                 self.room.open_hallway(&mut self.man);
                 self.next_view = self.room.view_hall();
                 self.lerping = true;
+                archetype::oneshot::play_sound(&mut self.man, Sounds::CameraPan);
             }
             _ => (),
         }

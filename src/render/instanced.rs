@@ -1,13 +1,12 @@
 use std::{
     mem::{size_of, size_of_val},
-    path::Path,
     ptr::null,
 };
 
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
-    math::{Mat4, Vec3, Vec4},
+    math::{Mat4, Vec3, Vec4}, resources,
 };
 
 // per vertex
@@ -62,7 +61,8 @@ impl<'a> InstancedShapeManager<'a> {
             index_data,
             _vertex_data: vertex_data,
             instance_data,
-            shader: Shader::from_file(ctx, Path::new("res/shaders/instanced")).unwrap(),
+            // shader: Shader::from_file(ctx, Path::new("res/shaders/instanced")).unwrap(),
+            shader: Shader::from_resource(ctx, resources::shaders::INSTANCED).unwrap(),
 
             num_indices,
             num_instances: 0,
