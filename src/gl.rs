@@ -1,9 +1,7 @@
 use std::{
-    f32::consts::E,
-    ffi::{CStr, CString},
+    ffi::CString,
     fs::read_to_string,
-    mem::{offset_of, size_of, size_of_val},
-    ops::BitOr,
+    mem::{offset_of, size_of},
     path::Path,
     ptr::{null, null_mut},
 };
@@ -11,7 +9,7 @@ use std::{
 use glfw::Context;
 
 use crate::{
-    common::{AsBytes, Error, Result},
+    common::{Error, Result},
     math::{Mat4, Vec3, Vec4},
     render::instanced::{Tile, Vertex},
 };
@@ -61,7 +59,7 @@ impl DrawContext {
 
 type GlObjectId = raw::GLuint;
 
-pub struct GlObject<'a>(GlObjectId, &'a DrawContext);
+pub struct GlObject<'a> { id: GlObjectId, _dc: &'a DrawContext, }
 
 pub struct Vao<'a>(GlObject<'a>);
 
@@ -69,11 +67,11 @@ impl<'a> Vao<'a> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateVertexArrays(1, &mut id));
-        Self(GlObject(id, ctx))
+        Self(GlObject { id, _dc: ctx })
     }
 
     pub fn apply(&self) {
-        call!(BindVertexArray(self.0 .0));
+        call!(BindVertexArray(self.0 .id));
     }
 
     pub fn bind_vertex_attribs(&self, vertex_data: &ArrayBuffer) {
@@ -160,7 +158,7 @@ impl<'a> Vao<'a> {
 
 impl<'a> Drop for Vao<'a> {
     fn drop(&mut self) {
-        call!(DeleteVertexArrays(1, &self.0 .0))
+        call!(DeleteVertexArrays(1, &self.0 .id))
     }
 }
 
@@ -170,12 +168,12 @@ pub mod buffer_flags {
     pub type Type = GLuint;
 
     pub const DEFAULT: Type = 0;
-    pub const MAP_READ: Type = 0x0001;
-    pub const MAP_WRITE: Type = 0x0002;
+    pub const _MAP_READ: Type = 0x0001;
+    pub const _MAP_WRITE: Type = 0x0002;
     pub const DYNAMIC_STORAGE: Type = 0x0100;
-    pub const CLIENT_STORAGE: Type = 0x0200;
-    pub const MAP_PERSISTENT: Type = 0x0040;
-    pub const MAP_COHERENT: Type = 0x0080;
+    pub const _CLIENT_STORAGE: Type = 0x0200;
+    pub const _MAP_PERSISTENT: Type = 0x0040;
+    pub const _MAP_COHERENT: Type = 0x0080;
 }
 
 pub struct Buffer<'a, const T: raw::GLenum>(GlObject<'a>);
@@ -186,7 +184,7 @@ pub type UniformBuffer<'a> = Buffer<'a, { raw::UNIFORM_BUFFER }>;
 
 impl<'a> UniformBuffer<'a> {
     pub fn bind_buffer_base(&self, bind_point: raw::GLuint) {
-        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0 .0));
+        call!(BindBufferBase(UNIFORM_BUFFER, bind_point, self.0 .id));
     }
 }
 
@@ -194,16 +192,16 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateBuffers(1, &mut id));
-        Self(GlObject(id, ctx))
+        Self(GlObject { id, _dc: ctx })
     }
 
     pub fn apply(&self) {
-        call!(BindBuffer(T, self.0 .0));
+        call!(BindBuffer(T, self.0 .id));
     }
 
     fn init(&self, data_size: usize, data_ptr: *const u8, flags: buffer_flags::Type) {
         call!(NamedBufferStorage(
-            self.0 .0,
+            self.0 .id,
             data_size as _,
             data_ptr.cast(),
             flags
@@ -221,7 +219,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     /// requires having passed the DYNAMIC_STORAGE flag in alloc
     pub fn update(&self, offset: usize, bytes: &[u8]) {
         call!(NamedBufferSubData(
-            self.0 .0,
+            self.0 .id,
             offset as _,
             bytes.len() as _,
             bytes.as_ptr().cast()
@@ -231,7 +229,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
 
 impl<'a, const T: raw::GLenum> Drop for Buffer<'a, T> {
     fn drop(&mut self) {
-        call!(DeleteBuffers(1, &self.0 .0))
+        call!(DeleteBuffers(1, &self.0 .id))
     }
 }
 
@@ -240,7 +238,7 @@ pub struct Shader<'a>(GlObject<'a>);
 impl<'a> Shader<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
         let id = call!(CreateProgram());
-        Self(GlObject(id, ctx))
+        Self(GlObject { id, _dc: ctx })
     }
 
     pub fn from_file(ctx: &'a DrawContext, path: &Path) -> Result<Self> {
@@ -261,12 +259,12 @@ impl<'a> Shader<'a> {
     }
 
     pub fn apply(&self) {
-        call!(UseProgram(self.0 .0));
+        call!(UseProgram(self.0 .id));
     }
 
-    pub fn locate_uniform(&self, name: &str) -> Option<raw::GLint> {
+    pub fn _locate_uniform(&self, name: &str) -> Option<raw::GLint> {
         let name = CString::new(name).expect("Bad uniform name");
-        let location = call!(GetUniformLocation(self.0 .0, name.as_ptr().cast()));
+        let location = call!(GetUniformLocation(self.0 .id, name.as_ptr().cast()));
         if location != -1 {
             Some(location)
         } else {
@@ -310,24 +308,24 @@ impl<'a> Shader<'a> {
             return Err(Error::ShaderCompilationError(log));
         }
 
-        call!(AttachShader(self.0 .0, shader));
+        call!(AttachShader(self.0 .id, shader));
 
         call!(DeleteShader(shader));
         Ok(())
     }
 
     fn compile(self) -> Result<Self> {
-        call!(LinkProgram(self.0 .0));
+        call!(LinkProgram(self.0 .id));
 
         let mut ok = 0;
-        call!(GetProgramiv(self.0 .0, LINK_STATUS, &mut ok));
+        call!(GetProgramiv(self.0 .id, LINK_STATUS, &mut ok));
         if ok != raw::TRUE as _ {
             let mut log_len = 0;
-            call!(GetProgramiv(self.0 .0, INFO_LOG_LENGTH, &mut log_len));
+            call!(GetProgramiv(self.0 .id, INFO_LOG_LENGTH, &mut log_len));
             log_len -= 1; // no need for null terminator
             let mut log = vec![0u8; log_len as _];
             call!(GetProgramInfoLog(
-                self.0 .0,
+                self.0 .id,
                 log_len,
                 null_mut(),
                 log.as_mut_ptr().cast()
@@ -341,24 +339,24 @@ impl<'a> Shader<'a> {
 }
 
 pub trait Uniform {
-    fn uniform(&self, layout_location: raw::GLint);
+    fn _uniform(&self, layout_location: raw::GLint);
 }
 
 impl Uniform for Mat4 {
-    fn uniform(&self, layout_location: raw::GLint) {
+    fn _uniform(&self, layout_location: raw::GLint) {
         let ptr = &self[0][0];
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
 
 impl Uniform for Vec3 {
-    fn uniform(&self, layout_location: raw::GLint) {
+    fn _uniform(&self, layout_location: raw::GLint) {
         call!(Uniform3f(layout_location, self.x, self.y, self.z))
     }
 }
 
 impl Uniform for f32 {
-    fn uniform(&self, layout_location: raw::GLint) {
+    fn _uniform(&self, layout_location: raw::GLint) {
         call!(Uniform1f(layout_location, *self))
     }
 }

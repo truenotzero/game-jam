@@ -5,10 +5,9 @@ use std::{
 };
 
 use crate::{
-    common::{as_bytes, AsBytes, Error, Result},
-    gl::{self, buffer_flags, call, ArrayBuffer, DrawContext, IndexBuffer, Shader, Uniform, Vao},
+    common::{as_bytes, AsBytes},
+    gl::{self, ArrayBuffer, DrawContext, IndexBuffer, Shader, Vao},
     math::{Mat4, Vec3, Vec4},
-    render::Renderer,
 };
 
 // per vertex
@@ -147,7 +146,7 @@ pub fn quad_vertex_helper(
     )
 }
 
-pub fn quad_vertex_helper_local_center(
+pub fn _quad_vertex_helper_local_center(
     depth_: f32,
     quads: impl Iterator<Item = Vec4>,
 ) -> (Vec<Vertex>, Vec<u8>) {

@@ -4,7 +4,7 @@ pub mod wall {
         math::Mat4,
         palette::Palette,
         render::{
-            instanced::{InstancedShapeManager, Tile},
+            instanced::Tile,
             RenderManager,
         },
     };
@@ -34,10 +34,10 @@ pub mod wall {
 pub mod background {
     use crate::{
         entity::{Components, Entities, EntityId, EntityManager, EntityView, Position},
-        math::{Mat4, Vec2, Vec3},
+        math::{Mat4, Vec2},
         palette::Palette,
         render::{
-            instanced::{InstancedShapeManager, Tile},
+            instanced::Tile,
             RenderManager,
         },
     };
@@ -79,10 +79,10 @@ pub mod snake {
             Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
             Position, SelfDestruct,
         },
-        math::{ease::UnitBezier, Mat4, Vec2, Vec3},
+        math::{Mat4, Vec2, Vec3},
         palette::{self, Palette},
         render::{
-            instanced::{InstancedShapeManager, Tile},
+            instanced::Tile,
             shield::Shield,
             RenderManager,
         }, sound::Sounds,
@@ -300,11 +300,11 @@ pub mod fruit {
     use rand::{thread_rng, Rng};
 
     use crate::{
-        entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView, Position},
+        entity::{Components, Entities, EntityId, EntityManager, EntityView},
         math::{Mat4, Vec2, Vec3},
         palette::Palette,
         render::{
-            instanced::{InstancedShapeManager, Tile},
+            instanced::Tile,
             RenderManager,
         },
     };
@@ -329,7 +329,7 @@ pub mod fruit {
         id
     }
 
-    pub fn put_at(man: &mut EntityManager, pos: Vec2) -> EntityId {
+    pub fn _put_at(man: &mut EntityManager, pos: Vec2) -> EntityId {
         let id = man.spawn(
             Entities::Fruit,
             &[
@@ -369,10 +369,10 @@ pub mod fireball {
         entity::{
             Color, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position,
         },
-        math::{Vec2, Vec3},
-        palette::{Palette, PaletteKey},
+        math::Vec3,
+        palette::Palette,
         render::{
-            fireball::{Fireball, FireballManager},
+            fireball::Fireball,
             RenderManager,
         },
     };

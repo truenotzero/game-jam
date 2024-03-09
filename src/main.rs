@@ -1,23 +1,22 @@
 use std::mem;
-use std::os::windows::thread;
-use std::path::Path;
+
+
 use std::sync::mpsc::{self, Sender};
-use std::thread::sleep;
+
 use std::time::{Duration, Instant};
 
 use common::AsBytes;
-use entity::{EntityManager, Position};
+use entity::EntityManager;
 use gl::{DrawContext, UniformBuffer};
 use glfw::{Context, OpenGlProfileHint};
 use glfw::{Key, WindowHint};
 use math::{ease, lerp, Vec2, Vec3};
-use palette::{Palette, PaletteKey};
+use palette::Palette;
 use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::RenderManager;
-use soloud::{AudioExt, LoadExt, Soloud, Speech, Wav};
-use sound::{SoundManager, Sounds};
+use sound::SoundManager;
 
 use crate::math::{Mat4, Vec4};
 
@@ -26,7 +25,6 @@ mod common;
 mod entity;
 mod gl;
 mod math;
-mod noise;
 mod palette;
 mod render;
 mod sound;
@@ -58,7 +56,7 @@ struct Game<'a> {
     mouse_tx: Sender<Vec2>,
     palette: Palette,
     renderer: RenderManager<'a>,
-    sound: SoundManager,
+    _sound: SoundManager,
     common_uniforms: UniformBuffer<'a>,
 }
 
@@ -106,7 +104,7 @@ impl<'a> Game<'a> {
             mouse_tx,
             palette: palette::dark_pastel(),
             renderer,
-            sound,
+            _sound: sound,
             common_uniforms,
         }
     }

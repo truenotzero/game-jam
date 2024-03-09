@@ -1,5 +1,5 @@
 use std::{
-    mem::{offset_of, size_of, MaybeUninit},
+    mem::{offset_of, size_of},
     path::Path,
 };
 

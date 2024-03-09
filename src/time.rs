@@ -7,7 +7,7 @@ pub struct Threshold {
 }
 
 impl Threshold {
-    pub fn new(threshold: Duration) -> Self {
+    pub fn _new(threshold: Duration) -> Self {
         let mut ret = Self::default();
         ret.set_threshold(threshold);
 

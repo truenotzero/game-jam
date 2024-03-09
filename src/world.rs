@@ -1,21 +1,16 @@
 use core::panic;
-use std::{
-    sync::mpsc::{self, Receiver, Sender},
-    thread,
-};
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
     archetype,
-    entity::{Direction, Entities, EntityId, EntityManager, Position, Scale},
-    gl::raw::BACK,
+    entity::{Direction, EntityId, EntityManager, Position, Scale},
     math::{Mat4, Vec2, Vec3, Vec4},
-    world,
 };
 
 const BACKGROUND_DEPTH: f32 = 0.9;
 const WALL_DEPTH: f32 = 0.8;
 
-pub enum RoomType {
+pub enum _RoomType {
     Spawn,
     Hall,
     Walls,
@@ -191,13 +186,13 @@ impl Room {
         ret
     }
 
-    pub fn destroy(&mut self, man: &mut EntityManager) {
+    pub fn _destroy(&mut self, man: &mut EntityManager) {
         for &part in &self.parts {
             man.kill(part);
         }
 
         if let Some(hall) = &mut self.hall {
-            hall.destroy(man);
+            hall._destroy(man);
         }
     }
 

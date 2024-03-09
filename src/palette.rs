@@ -5,9 +5,9 @@ pub enum PaletteKey {
     #[default]
     None,
     Snake,
-    Wall,
-    Background,
-    Fruit,
+    _Wall,
+    _Background,
+    _Fruit,
 }
 
 #[derive(Clone, Copy)]
@@ -23,9 +23,9 @@ impl Palette {
         match key {
             PaletteKey::None => Vec3::default(),
             PaletteKey::Snake => self.snake,
-            PaletteKey::Wall => self.wall,
-            PaletteKey::Background => self.background,
-            PaletteKey::Fruit => self.fruit,
+            PaletteKey::_Wall => self.wall,
+            PaletteKey::_Background => self.background,
+            PaletteKey::_Fruit => self.fruit,
         }
     }
 
@@ -39,7 +39,7 @@ impl Palette {
     }
 }
 
-pub fn aperture() -> Palette {
+pub fn _aperture() -> Palette {
     let offwhite = Vec3::rgb(0xEA, 0xDF, 0xB4);
     let light_blue = Vec3::rgb(0x9B, 0xB0, 0xC1);
     let dark_blue = Vec3::rgb(0x51, 0x82, 0x9B);
@@ -53,10 +53,10 @@ pub fn aperture() -> Palette {
     .srgb_to_linear()
 }
 
-pub fn bright_pastel() -> Palette {
+pub fn _bright_pastel() -> Palette {
     let green = Vec3::hexcode("5EFC8D").unwrap();
     let lavender = Vec3::hexcode("FDECEF").unwrap();
-    let pink = Vec3::hexcode("EF476F").unwrap();
+    let _pink = Vec3::hexcode("EF476F").unwrap();
     let indigo = Vec3::hexcode("8377D1").unwrap();
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 
@@ -73,7 +73,7 @@ pub fn bright_pastel() -> Palette {
 pub fn dark_pastel() -> Palette {
     let dark_blue = Vec3::hexcode("102542").unwrap();
     let light_blue = Vec3::hexcode("9DCDC0").unwrap();
-    let pink = Vec3::hexcode("EF476F").unwrap();
+    let _pink = Vec3::hexcode("EF476F").unwrap();
     let indigo = Vec3::hexcode("8377D1").unwrap();
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 

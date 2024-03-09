@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     common::{as_bytes, AsBytes},
-    gl::{self, ArrayBuffer, DrawContext, Shader, Uniform, Vao},
-    math::{Vec2, Vec3, Vec4},
+    gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
+    math::{Vec2, Vec3},
 };
 
 pub struct Fireball {

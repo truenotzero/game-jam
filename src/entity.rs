@@ -1,16 +1,15 @@
 use core::fmt;
 use std::{
-    any::{self, Any}, cell::{Ref, RefCell, RefMut}, collections::HashMap, f32::consts::E, hash::DefaultHasher, iter, process::exit, rc::Rc, sync::mpsc::{self, Receiver, Sender}, thread::sleep, time::Duration
+    any::Any, cell::{Ref, RefCell, RefMut}, collections::HashMap, rc::Rc, sync::mpsc::{self, Receiver, Sender}, time::Duration
 };
 
 use glfw::Key;
 
 use crate::{
-    gl::buffer_flags::DEFAULT,
     math::{Vec2, Vec3},
     palette::{Palette, PaletteKey},
-    render::{fireball::FireballManager, instanced::InstancedShapeManager, RenderManager},
-    sound::{SoundManager, Sounds},
+    render::RenderManager,
+    sound::SoundManager,
     time,
 };
 
@@ -21,7 +20,7 @@ pub enum Entities {
     SnakeHead,
     SnakeBody,
     Fruit,
-    Enemy,
+    _Enemy,
     Fireball,
     Trigger,
 }
@@ -83,7 +82,7 @@ impl fmt::Display for Components {
 }
 
 impl Components {
-    fn requires(self) -> Vec<Components> {
+    fn _requires(self) -> Vec<Components> {
         use Components as C;
         match self {
             C::Direction => vec![C::Position],
@@ -249,7 +248,7 @@ pub type Properties = HashMap<&'static str, Property>;
 pub enum Animation {
     #[default]
     Idle,
-    Growing,
+    _Growing,
 }
 
 pub type Color = PaletteKey;
@@ -284,7 +283,7 @@ impl<'m> EntityView<'m> {
         let _ = self.kill_signal.send(self.id);
     }
 
-    pub fn id(&self) -> EntityId {
+    pub fn _id(&self) -> EntityId {
         self.id
     }
 
@@ -389,8 +388,8 @@ impl<'m> EntityView<'m> {
         self.unwrap(self.storage().get_mouse(self.id), Components::Input)
     }
 
-    pub fn get_animation(&self) -> Animation {
-        self.unwrap(self.storage().get_animation(self.id), Components::Animation)
+    pub fn _get_animation(&self) -> Animation {
+        self.unwrap(self.storage()._get_animation(self.id), Components::Animation)
     }
 
     pub fn set_animation(&mut self, animation: Animation) {
@@ -432,7 +431,7 @@ impl<'m> EntityView<'m> {
         let _ = spawner.send(request);
     }
 
-    fn is_collider(&self) -> bool {
+    fn _is_collider(&self) -> bool {
         self.storage().is_collider(self.id)
     }
 }
@@ -637,7 +636,7 @@ impl Storages {
         self.scales.insert(entity, scale);
     }
 
-    pub fn get_animation(&self, entity: EntityId) -> Option<Animation> {
+    pub fn _get_animation(&self, entity: EntityId) -> Option<Animation> {
         self.animations.get(&entity).copied()
     }
 
@@ -729,7 +728,7 @@ impl EntityManager {
         id
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = EntityView> {
+    pub fn _iter_mut(&mut self) -> impl Iterator<Item = EntityView> {
         self.entities.iter().filter_map(|&id| self.view(id))
     }
 

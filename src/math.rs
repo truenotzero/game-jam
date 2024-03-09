@@ -462,10 +462,6 @@ impl Mat4 {
         ret
     }
 
-    pub fn rotate(angle: f32) -> Self {
-        todo!()
-    }
-
     pub fn translate(translate: Vec3) -> Self {
         let mut ret = Self::identity();
         ret[3][0] = translate.x;
@@ -622,14 +618,14 @@ pub mod ease {
     use super::Vec2;
 
     /// cubic bezier defined by (0,0), p1, p2, (1,1)
-    pub struct UnitBezier {
+    pub struct _UnitBezier {
         p1: Vec2,
         p2: Vec2,
         approximations: Vec<Vec2>,
     }
 
-    impl UnitBezier {
-        pub fn new(p1x: f32, p1y: f32, p2x: f32, p2y: f32, num_approximations: usize) -> Self {
+    impl _UnitBezier {
+        pub fn _new(p1x: f32, p1y: f32, p2x: f32, p2y: f32, num_approximations: usize) -> Self {
             let p1 = Vec2::new(p1x, p1y);
             let p2 = Vec2::new(p2x, p2y);
 
@@ -637,7 +633,7 @@ pub mod ease {
             let mut approximations = Vec::with_capacity(num_approximations);
             for i in 0..num_approximations {
                 let t = step * i as f32;
-                let b = Self::t(p1, p2, t);
+                let b = Self::_t(p1, p2, t);
                 approximations.push(b);
             }
 
@@ -649,7 +645,7 @@ pub mod ease {
         }
 
         /// Calculate B(t) = (x,y)
-        fn t(p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
+        fn _t(p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
             let p3 = Vec2::diagonal(1.0);
 
             (3.0 * t * t * t - 6.0 * t * t + 3.0 * t) * p1
@@ -659,7 +655,7 @@ pub mod ease {
 
         /// Given a point B(t) = (x,y)
         /// approximate the y value based on x
-        pub fn apply(&self, x: f32) -> f32 {
+        pub fn _apply(&self, x: f32) -> f32 {
             let mut low = Vec2::default();
             for v in &self.approximations {
                 if v.x < x {
@@ -684,11 +680,11 @@ pub mod ease {
         }
     }
 
-    pub fn out_quart(p: f32) -> f32 {
+    pub fn _out_quart(p: f32) -> f32 {
         1.0 - (1.0 - p).powf(4.0)
     }
 
-    pub fn out_back(p: f32) -> f32 {
+    pub fn _out_back(p: f32) -> f32 {
         let c1 = 1.70158;
         let c3 = c1 + 1.0;
 
@@ -696,7 +692,7 @@ pub mod ease {
         1.0 + c3 * p * p * p + c1 * p * p
     }
 
-    pub fn in_back(p: f32) -> f32 {
+    pub fn _in_back(p: f32) -> f32 {
         let c1 = 1.70158;
         let c3 = c1 + 1.0;
 
