@@ -22,6 +22,7 @@ pub enum Entities {
     Fruit,
     Enemy,
     Fireball,
+    Trigger,
 }
 
 impl fmt::Display for Entities {
@@ -175,11 +176,11 @@ impl Collider {
         t: Entities,
         e1: &'r mut EntityView<'v>,
         e2: &'r mut EntityView<'v>,
-    ) -> Option<&'r mut EntityView<'v>> {
+    ) -> Option<(&'r mut EntityView<'v>, &'r mut EntityView<'v>)> {
         if e1.which() == t {
-            Some(e1)
+            Some((e1, e2))
         } else if e2.which() == t {
-            Some(e2)
+            Some((e2, e1))
         } else {
             None
         }
@@ -196,7 +197,10 @@ impl Collider {
         } else if let Some((_head, _wall)) = Self::is_between(E::SnakeHead, E::Wall, e1, e2) {
             panic!("Game over");
         } else if let Some((fireball, _wall)) = Self::is_between(E::Fireball, E::Wall, e1, e2) {
+            // TODO
             fireball.kill();
+        } else if let Some((trigger, other)) = Self::at_least(Entities::Trigger, e1, e2) {
+            trigger::activated(trigger, other);
         }
     }
 }
@@ -546,13 +550,12 @@ impl Storages {
                     continue;
                 }
 
-                // shitty way of checking if it's a fireball
-                if self.speeds.contains_key(&entity) {
-                } else {
-                    if Vec2::from(position).eq((other_pos).into()) {
-                        // collision detected
-                        let _ = self.collisions.send((entity, other));
-                    }
+                let self_pos = Vec2::from(position).floor();
+                let other_pos = Vec2::from(other_pos).floor();
+
+                if self_pos.eq(other_pos) {
+                    // collision detected
+                    let _ = self.collisions.send((entity, other));
                 }
             }
         }

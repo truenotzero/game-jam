@@ -1,5 +1,8 @@
 use std::mem;
+use std::os::windows::thread;
+use std::path::Path;
 use std::sync::mpsc::{self, Sender};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use common::AsBytes;
@@ -13,6 +16,7 @@ use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::RenderManager;
+use soloud::{AudioExt, LoadExt, Soloud, Speech, Wav};
 
 use crate::math::{Mat4, Vec4};
 
@@ -142,7 +146,7 @@ impl<'a> Game<'a> {
                 self.lerping = true;
             }
             Key::B => {
-                self.room.break_walls(&mut self.man);
+                self.room.open_hallway(&mut self.man);
                 self.next_view = self.room.view_hall();
                 self.lerping = true;
             },
@@ -266,7 +270,24 @@ impl Window {
     }
 }
 
+fn play<P: AsRef<Path>>(path: P) {
+    let sound_name = path.as_ref();
+    let mut sl = Soloud::default().unwrap();
+
+    let mut wav = Wav::default();
+    wav.load(sound_name).unwrap();
+    sl.play(&wav);
+    let len = wav.length();
+
+    while sl.active_voice_count() > 0 {
+        sleep(Duration::from_secs_f64(len));
+    }
+}
+
 fn main() {
+    play("res/sounds/die.wav");
+    play("res/sounds/eat.wav");
+
     let window = Window::new();
     window.run()
 }

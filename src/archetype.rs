@@ -387,3 +387,33 @@ pub mod fireball {
         })
     }
 }
+
+pub mod trigger {
+    use std::sync::mpsc::Sender;
+
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Vec2, Vec3}};
+
+    pub fn new(man: &mut EntityManager, position: Vec2, predicate: fn(&mut EntityView) -> bool, notify: Sender<()>) -> EntityId {
+        let id = man.spawn(Entities::Trigger, &[
+            Components::Position,
+            Components::Collider,
+            Components::Properties,
+        ]);
+
+        let mut trigger = man.view(id).unwrap();
+        trigger.set_position(Vec3::from((position, 0.0)));
+        trigger.new_property("predicate", predicate);
+        trigger.new_property("notify", notify);
+
+        id
+    }
+
+    pub fn activated(this: &mut EntityView, entity: &mut EntityView) {
+        if entity.which() == Entities::Trigger { return; }
+        if this.with_property("predicate", |p: &fn(&mut EntityView) -> bool| p(entity)) {
+            this.with_mut_property("notify", |n: &mut Sender<()>| { 
+                let _ = n.send(());
+            })
+        }
+    }
+}

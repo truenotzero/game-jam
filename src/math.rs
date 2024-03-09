@@ -51,6 +51,10 @@ impl Vec2 {
     pub fn abs(self) -> Self {
         Self::new(self.x.abs(), self.y.abs())
     }
+
+    pub fn floor(self) -> Self {
+        Self::new(self.x.floor(), self.y.floor())
+    }
 }
 
 impl PartialEq for Vec2 {

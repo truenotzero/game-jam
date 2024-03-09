@@ -1,4 +1,5 @@
 use core::panic;
+use std::{sync::mpsc::{self, Receiver, Sender}, thread};
 
 use crate::{
     archetype,
@@ -103,7 +104,7 @@ impl Room {
         self.width = width;
     }
 
-    fn destroy_wall(&self, man: &mut EntityManager, side: Direction, hole_size: f32) {
+    fn replace_walls_with_triggers(&self, man: &mut EntityManager, side: Direction, hole_size: f32, tx: Sender<()>) {
         let (xs, xe, ys, ye) = match side {
             Direction::Up => {
                 let y = self.position.y - 0.5 * self.dimensions.y;
@@ -138,17 +139,26 @@ impl Room {
 
                 if xs <= pos.x && pos.x <= xe && ys <= pos.y && pos.y <= ye {
                     wall.kill();
+
+                    archetype::trigger::new(man, pos.into(), |_| true, tx.clone());
                 }
             }
         }
     }
 
-    pub fn break_walls(&self, man: &mut EntityManager) {
-        if let Some(hall) = &self.hall {
-            hall.destroy_wall(man, self.direction, self.width);
-            hall.destroy_wall(man, self.direction.reverse(), self.width);
-            self.destroy_wall(man, self.direction, self.width);
-        }
+    /// returns two trigger listeners
+    /// the first triggers when the player leaves the room and enters the hallway
+    /// the second triggers when the player is about to leave the hallway and enter the next room
+    pub fn open_hallway(&self, man: &mut EntityManager) -> (Receiver<()>, Receiver<()>) {
+        let hall = self.hall.as_ref().expect("should have hallway");
+        let (tx_near, rx_near) = mpsc::channel();
+        let (tx_far, rx_far) = mpsc::channel();
+
+        hall.replace_walls_with_triggers(man, self.direction, self.width, tx_far.clone());
+        hall.replace_walls_with_triggers(man, self.direction.reverse(), self.width, tx_near.clone());
+        self.replace_walls_with_triggers(man, self.direction, self.width, tx_near.clone());
+
+        (rx_near, rx_far)
     }
 
     pub fn spawn(man: &mut EntityManager) -> Self {
@@ -167,14 +177,19 @@ impl Room {
         }
     }
 
+    // view the room while keeping a 1:1 aspect ratio
     pub fn view_room(&self) -> Mat4 {
-        Mat4::screen(self.position, self.dimensions.x, self.dimensions.y)
+        let dim = self.dimensions.x.max(self.dimensions.y);
+        Mat4::screen(self.position, dim, dim)
     }
 
+    // view the hall while keeping a 1:1 aspect ratio
     pub fn view_hall(&self) -> Mat4 {
         if let Some(hall) = &self.hall {
-            let dim = hall.dimensions;
-            Mat4::screen(hall.position, dim.x, dim.y)
+            // let dim = hall.dimensions;
+            // let dim = dim.x.max(dim.y);
+            // Mat4::screen(hall.position, dim, dim)
+            hall.view_room()
         } else {
             panic!()
         }
