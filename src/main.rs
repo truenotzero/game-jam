@@ -247,7 +247,7 @@ impl Window {
             .create_window(
                 width as u32,
                 height as u32,
-                "Snek",
+                "snek",
                 glfw::WindowMode::Windowed,
             )
             .expect("Failed to create window");
