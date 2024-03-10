@@ -79,8 +79,8 @@ pub mod snake {
         sound::Sounds,
     };
 
-    // const STEP: Duration = Duration::from_millis(150);
-    const STEP: Duration = Duration::from_millis(1500);
+    const STEP: Duration = Duration::from_millis(150);
+    // const STEP: Duration = Duration::from_millis(1500);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
         let id = man.spawn(
@@ -104,7 +104,7 @@ pub mod snake {
         snake.access_timer(|t| t.set_threshold(STEP));
 
         snake.new_property("score", 0);
-        snake.new_property("smoothing", false);
+        snake.new_property("smoothing", true);
         snake.new_property("shield", false);
 
         id
@@ -224,7 +224,7 @@ pub mod snake {
     fn draw_shield(pos: Vec3, neighbors: &[Direction], renderer: &mut RenderManager, palette: Palette) {
         use Direction as D;
 
-        let pos = Vec2::from(pos);
+       let pos = Vec2::from(pos);
 
         let shield = [D::Up, D::Down, D::Left, D::Right]
             .into_iter()
@@ -235,7 +235,7 @@ pub mod snake {
             )
             ;
 
-        renderer.push(shield);
+        // renderer.push(shield);
 
         if neighbors.len() == 2 {
             let n1 = neighbors[0].into();
@@ -249,7 +249,7 @@ pub mod snake {
                     .push_side(n2)
                 ;
                 
-                renderer.push(fix);
+                // renderer.push(fix);
             }
 
         }
@@ -342,33 +342,21 @@ pub mod fruit {
     };
 
     pub fn new(man: &mut EntityManager) -> EntityId {
-        let id = man.spawn(
-            Entities::Fruit,
-            &[
-                Components::Position,
-                Components::Collider,
-                Components::Spawner,
-                Components::Sound,
-            ],
-        );
-
         let mut rng = thread_rng();
         let x = rng.gen_range(-10..10) as f32;
         let y = rng.gen_range(-10..10) as f32;
 
-        let mut fruit = man.view(id).unwrap();
-        fruit.set_position(Vec3::new(x, y, 0.0));
-
-        id
+        self::put_at(man, Vec2::new(x, y))
     }
 
-    pub fn _put_at(man: &mut EntityManager, pos: Vec2) -> EntityId {
+    pub fn put_at(man: &mut EntityManager, pos: Vec2) -> EntityId {
         let id = man.spawn(
             Entities::Fruit,
             &[
                 Components::Position,
                 Components::Collider,
                 Components::Spawner,
+                Components::Sound
             ],
         );
 

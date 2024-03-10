@@ -1,0 +1,14 @@
+Content:
+========
+- Enemies:
+    - [ ] Static enemy (turret)
+    - [ ] Mobile enemy
+- [ ] Slash attack
+- [ ] Powerup system
+- [x] CRT shader
+
+Fixes:
+======
+- [ ] Collision detection
+- [ ] Closing up past rooms/hallways
+- [ ] Forcefield overlapping

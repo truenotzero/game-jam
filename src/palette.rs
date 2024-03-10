@@ -86,3 +86,12 @@ pub fn dark_pastel() -> Palette {
     }
     .srgb_to_linear()
 }
+
+pub fn crt() -> Palette {
+    Palette {
+        snake: Vec3::new(0.0, 1.0, 0.0),
+        wall: Vec3::new(1.0, 1.0, 1.0),
+        background: Vec3::rgb(1, 1, 1),
+        fruit: Vec3::new(1.0, 1.0, 0.0),
+    }
+}

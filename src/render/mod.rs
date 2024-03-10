@@ -1,8 +1,11 @@
-use std::collections::HashMap;
+use core::slice;
+use std::{collections::HashMap, mem::size_of_val, ptr::null, time::{Duration, Instant}};
+
+use crate::{gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao}, math::Vec4, resources};
 
 use self::{
     fireball::{Fireball, FireballManager},
-    instanced::{InstancedShapeManager, Tile},
+    instanced::{quad_vertex_helper, quad_vertex_helper_local_center, InstancedShapeManager, Tile},
     shield::{Shield, ShieldManager},
 };
 
@@ -104,14 +107,51 @@ impl<'a> Renderer<'a> {
     }
 }
 
-#[derive(Default)]
 pub struct RenderManager<'a> {
+    framebuffer: FrameBuffer<'a>,
+    vao: Vao<'a>,
+    _vbo: ArrayBuffer<'a>,
+    shader: Shader<'a>,
+    start_time: Instant,
+
     renderers: HashMap<RenderType, Renderer<'a>>,
 }
 
 impl<'a> RenderManager<'a> {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ctx: &'a DrawContext) -> Self {
+        let vao = Vao::new(ctx);
+        let vbo = ArrayBuffer::new(ctx);
+        let vertex_positions = [
+            // positions    uv coords
+            -1.0,  1.0,     0.0, 1.0,
+             1.0,  1.0,     1.0, 1.0,
+            -1.0, -1.0,     0.0, 0.0,
+             1.0, -1.0,     1.0, 0.0f32,
+        ];
+        // safe because it's just reintrepreting the data to send to the GPU
+        // cbb to waste more time on pointless abstractions I won't reuse
+        let black_magic = {
+            let len = size_of_val(&vertex_positions);
+            let ptr = vertex_positions.as_ptr().cast();
+            unsafe { slice::from_raw_parts(ptr, len) }
+        };
+        vbo.set(black_magic, gl::buffer_flags::DEFAULT);
+        vbo.apply();
+        vao.apply();
+        gl::call!(EnableVertexAttribArray(0));
+        gl::call!(VertexAttribPointer(0, 2, FLOAT, FALSE, 4 * 4, (4 * 0) as _));
+        gl::call!(EnableVertexAttribArray(1));
+        gl::call!(VertexAttribPointer(1, 2, FLOAT, FALSE, 4 * 4, (4 * 2) as _));
+
+        Self {
+            framebuffer: FrameBuffer::new_screen(ctx),
+            vao,
+            _vbo: vbo,
+            shader: Shader::from_resource(ctx, resources::shaders::CRT).expect("bad crt shader"),
+            start_time: Instant::now(),
+
+            renderers: Default::default(),
+        }
     }
 
     pub fn add_renderer(&mut self, renderer: impl Into<Renderer<'a>>) {
@@ -137,14 +177,27 @@ impl<'a> RenderManager<'a> {
     }
 
     pub fn draw(&mut self) {
+        // render the scene first
         // for transparency to work properly
         // render back to front
-        self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
-        self.renderers
-            .get_mut(&RenderType::Shield)
-            .map(|r| r.draw());
-        self.renderers
-            .get_mut(&RenderType::Fireball)
-            .map(|r| r.draw());
+        self.framebuffer.with(|_| {
+            FrameBuffer::clear();
+
+            self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
+            self.renderers
+                .get_mut(&RenderType::Shield)
+                .map(|r| r.draw());
+            self.renderers
+                .get_mut(&RenderType::Fireball)
+                .map(|r| r.draw());
+        });
+
+        // render the texture onto the monitor
+        FrameBuffer::clear();
+        self.vao.apply();
+        self.shader.apply();
+        self.start_time.elapsed().as_millis().uniform(0);
+        self.framebuffer.bind_texture(0);
+        call!(DrawArrays(TRIANGLE_STRIP, 0, 4));
     }
 }

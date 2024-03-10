@@ -18,6 +18,7 @@ use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::RenderManager;
 use sound::{SoundManager, Sounds};
+use world::Room;
 
 use crate::math::{Mat4, Vec4};
 
@@ -56,7 +57,8 @@ struct Game<'a> {
     next_view: Mat4,
     current_view: Mat4,
 
-    room: world::Room,
+    last_room: Option<world::Room>,
+    current_room: world::Room,
     man: EntityManager,
     keystroke_tx: Sender<Key>,
     mouse_tx: Sender<Vec2>,
@@ -89,7 +91,7 @@ impl<'a> Game<'a> {
             gl::buffer_flags::DYNAMIC_STORAGE,
         );
 
-        let mut renderer = RenderManager::new();
+        let mut renderer = RenderManager::new(ctx);
         renderer.add_renderer(tile_renderer);
         renderer.add_renderer(fireball_renderer);
 
@@ -109,11 +111,12 @@ impl<'a> Game<'a> {
             current_view: room.view(),
             next_view: normal,
 
-            room,
+            last_room: None,
+            current_room: room,
             man,
             keystroke_tx,
             mouse_tx,
-            palette: palette::dark_pastel(),
+            palette: palette::crt(),
             renderer,
             sound,
             common_uniforms,
@@ -151,22 +154,38 @@ impl<'a> Game<'a> {
 
         self.man.tick(dt);
 
+        // hall enter trigger
         if self
             .pan_to_hall_trigger
             .as_ref()
             .map(|rx| rx.try_recv().is_ok())
             .unwrap_or_default()
         {
-            self.move_camera(self.room.view_hall());
+            // pan to hall
+            self.move_camera(self.current_room.view_hall());
+
+            // close hall entrance off
+            //self.current_room.close_hall_entrance(&mut self.man);
+
+            // prepare next room
+            if let Some(last) = &mut self.last_room {
+                last.destroy(&mut self.man);
+            }
+
+            self.last_room = Some(Room::next(&mut self.man, &self.current_room));
         }
 
+        // hall leave trigger
         if self
             .pan_to_room_trigger
             .as_ref()
             .map(|rx| rx.try_recv().is_ok())
             .unwrap_or_default()
         {
-            self.move_camera(self.room.view());
+            // swap rooms
+            self.last_room.as_mut().map(|last_room| std::mem::swap(&mut self.current_room, last_room));
+            // pan to new room
+            self.move_camera(self.current_room.view());
         }
     }
 
@@ -180,7 +199,7 @@ impl<'a> Game<'a> {
                 self.lerping = true;
             }
             Key::B => {
-                let (hall, room) = self.room.open_hallway(&mut self.man);
+                let (hall, room) = self.current_room.open_hallway(&mut self.man);
                 self.pan_to_hall_trigger = Some(hall);
                 self.pan_to_room_trigger = Some(room);
             }
@@ -275,6 +294,9 @@ impl Window {
         gl::call!(Enable(gl::raw::FRAMEBUFFER_SRGB));
         // enable AA
         gl::call!(Enable(MULTISAMPLE));
+        // set void color
+        let clear_color = Vec3::rgb(7, 14, 54).srgb_to_linear();
+        gl::call!(ClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0));
 
         Self {
             width,
@@ -315,9 +337,6 @@ impl Window {
             game.tick(dt);
             last = now;
 
-            unsafe {
-                gl::raw::Clear(gl::raw::COLOR_BUFFER_BIT | gl::raw::DEPTH_BUFFER_BIT);
-            }
             game.draw();
             self.window.swap_buffers();
         }

@@ -147,7 +147,7 @@ pub fn quad_vertex_helper(
     )
 }
 
-pub fn _quad_vertex_helper_local_center(
+pub fn quad_vertex_helper_local_center(
     depth_: f32,
     quads: impl Iterator<Item = Vec4>,
 ) -> (Vec<Vertex>, Vec<u8>) {

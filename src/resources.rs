@@ -50,4 +50,9 @@ pub mod shaders {
         load!("shaders/shield.frag"),
         load!("shaders/shield.geom"),
     ];
+
+    pub const CRT: Shader = &[
+        load!("shaders/crt.vert"),
+        load!("shaders/crt.frag"),
+    ];
 }

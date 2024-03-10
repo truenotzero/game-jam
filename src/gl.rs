@@ -62,7 +62,7 @@ type GlObjectId = raw::GLuint;
 
 pub struct GlObject<'a> {
     id: GlObjectId,
-    _dc: &'a DrawContext,
+    _ctx: &'a DrawContext,
 }
 
 pub struct Vao<'a>(GlObject<'a>);
@@ -71,7 +71,7 @@ impl<'a> Vao<'a> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateVertexArrays(1, &mut id));
-        Self(GlObject { id, _dc: ctx })
+        Self(GlObject { id, _ctx: ctx })
     }
 
     pub fn apply(&self) {
@@ -196,7 +196,7 @@ impl<'a, const T: raw::GLenum> Buffer<'a, T> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateBuffers(1, &mut id));
-        Self(GlObject { id, _dc: ctx })
+        Self(GlObject { id, _ctx: ctx })
     }
 
     pub fn apply(&self) {
@@ -242,7 +242,7 @@ pub struct Shader<'a>(GlObject<'a>);
 impl<'a> Shader<'a> {
     fn new(ctx: &'a DrawContext) -> Self {
         let id = call!(CreateProgram());
-        Self(GlObject { id, _dc: ctx })
+        Self(GlObject { id, _ctx: ctx })
     }
 
     pub fn _from_file(ctx: &'a DrawContext, path: &Path) -> Result<Self> {
@@ -362,25 +362,163 @@ impl<'a> Shader<'a> {
     }
 }
 
+impl<'a> Drop for Shader<'a> {
+    fn drop(&mut self) {
+        call!(DeleteProgram(self.0.id));
+    }
+}
+
 pub trait Uniform {
-    fn _uniform(&self, layout_location: raw::GLint);
+    fn uniform(&self, layout_location: raw::GLint);
 }
 
 impl Uniform for Mat4 {
-    fn _uniform(&self, layout_location: raw::GLint) {
+    fn uniform(&self, layout_location: raw::GLint) {
         let ptr = &self[0][0];
         call!(UniformMatrix4fv(layout_location, 1, FALSE, ptr))
     }
 }
 
 impl Uniform for Vec3 {
-    fn _uniform(&self, layout_location: raw::GLint) {
+    fn uniform(&self, layout_location: raw::GLint) {
         call!(Uniform3f(layout_location, self.x, self.y, self.z))
     }
 }
 
 impl Uniform for f32 {
-    fn _uniform(&self, layout_location: raw::GLint) {
+    fn uniform(&self, layout_location: raw::GLint) {
         call!(Uniform1f(layout_location, *self))
     }
 }
+
+impl Uniform for u128 {
+    fn uniform(&self, layout_location: raw::GLint) {
+        call!(Uniform1i(layout_location, *self as _));
+    }
+}
+
+pub struct Texture<'a, const T: raw::GLenum>(GlObject<'a>);
+
+pub type Texture2D<'a> = Texture<'a, { raw::TEXTURE_2D }>;
+
+impl <'a, const T: raw::GLenum> Texture<'a, T> {
+    pub fn new(ctx: &'a DrawContext) -> Self {
+        let mut id = 0;
+        call!(CreateTextures(T, 1, &mut id));
+        Self(GlObject { id, _ctx: ctx })
+    }
+
+    pub fn bind(&self, slot: usize) {
+        call!(BindTextureUnit(slot as _, self.0.id));
+    }
+
+    pub fn apply(&self) {
+        call!(BindTexture(T, self.0.id))
+    }
+
+    pub fn type_(&self) -> raw::GLenum {
+        T
+    }
+}
+
+impl<'a, const T: raw::GLenum> Drop for Texture<'a, T> {
+    fn drop(&mut self) {
+        call!(DeleteTextures(1, &self.0.id));
+    }
+}
+
+pub struct RenderBuffer<'a>(GlObject<'a>);
+
+impl<'a> RenderBuffer<'a> {
+    pub fn new(ctx: &'a DrawContext, width: raw::GLint, height: raw::GLint) -> Self {
+        let mut id = 0;
+        call!(CreateRenderbuffers(1, &mut id));
+        let this = Self(GlObject { id, _ctx: ctx });
+        this.apply();
+        call!(RenderbufferStorage(RENDERBUFFER, DEPTH_COMPONENT, width, height));
+        this
+    }
+
+    pub fn apply(&self) {
+        call!(BindRenderbuffer(RENDERBUFFER, self.0.id));
+    }
+}
+
+impl<'a> Drop for RenderBuffer<'a> {
+    fn drop(&mut self) {
+        call!(DeleteRenderbuffers(1, &self.0.id))
+    }
+}
+
+pub struct FrameBuffer<'a> {
+    id: GlObject<'a>,
+    depth_buffer: RenderBuffer<'a>,
+    color_buffer: Texture2D<'a>,
+}
+
+impl<'a> FrameBuffer<'a> {
+    pub fn new(ctx: &'a DrawContext, width: raw::GLint, height: raw::GLint) -> Self {
+        let mut id = 0;
+        let depth_buffer = RenderBuffer::new(ctx, width, height);
+        let color_buffer = Texture2D::new(ctx);
+        call!(CreateFramebuffers(1, &mut id));
+        color_buffer.apply();
+        call!(TexImage2D(color_buffer.type_(), 0, raw::RGBA as _, width, height, 0, raw::RGBA, raw::FLOAT, null()));
+        call!(TexParameteri(color_buffer.type_(), TEXTURE_MIN_FILTER, LINEAR as _));
+        call!(TexParameteri(color_buffer.type_(), TEXTURE_MAG_FILTER, LINEAR as _));
+        call!(TexParameteri(color_buffer.type_(), TEXTURE_WRAP_S, CLAMP_TO_EDGE as _));
+        call!(TexParameteri(color_buffer.type_(), TEXTURE_WRAP_T, CLAMP_TO_EDGE as _));
+
+        let this = Self {
+            id: GlObject { id, _ctx: ctx },
+            depth_buffer,
+            color_buffer,
+        };
+        
+        this.with(|this| {
+            call!(FramebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, this.color_buffer.type_(), this.color_buffer.0.id, 0));
+            call!(FramebufferRenderbuffer(FRAMEBUFFER, DEPTH_ATTACHMENT, RENDERBUFFER, this.depth_buffer.0.id));
+            let status = call!(CheckFramebufferStatus(FRAMEBUFFER));
+            assert!(status == raw::FRAMEBUFFER_COMPLETE);
+        });
+
+        this
+    }
+
+    pub fn new_screen(ctx: &'a DrawContext) -> Self {
+        let mut viewport: [raw::GLint; 4] = Default::default();
+        call!(GetIntegerv(VIEWPORT, viewport.as_mut_ptr()));
+        Self::new(ctx, viewport[2], viewport[3])
+    }
+
+    fn apply(&self) {
+        call!(BindFramebuffer(FRAMEBUFFER, self.id.id));
+    }
+
+    fn apply_default() {
+        call!(BindFramebuffer(FRAMEBUFFER, 0));
+    }
+
+    pub fn with<T>(&self, f: impl FnOnce(&Self) -> T) -> T {
+        self.apply();
+        let ret = f(self);
+        Self::apply_default();
+        ret
+    }
+
+    pub fn bind_texture(&self, slot: usize) {
+        self.color_buffer.bind(slot)
+    }
+
+    /// clears the currently bound framebuffer
+    pub fn clear() {
+        call!(Clear(DEPTH_BUFFER_BIT | COLOR_BUFFER_BIT));
+    }
+}
+
+impl<'a> Drop for FrameBuffer<'a> {
+    fn drop(&mut self) {
+        call!(DeleteFramebuffers(1, &self.id.id));
+    }
+}
+

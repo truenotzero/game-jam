@@ -109,6 +109,16 @@ impl Mul<Vec2> for f32 {
     }
 }
 
+impl Mul for Vec2 {
+    type Output = Self;
+    
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        self.x *= rhs.x;
+        self.y *= rhs.y;
+        self
+    }
+}
+
 impl Neg for Vec2 {
     type Output = Vec2;
 

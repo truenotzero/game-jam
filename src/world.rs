@@ -1,9 +1,9 @@
-use core::panic;
+use core::{arch, panic};
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
     archetype,
-    entity::{Direction, EntityId, EntityManager, Position, Scale},
+    entity::{Direction, Entities, EntityId, EntityManager, Position, Scale},
     math::{Mat4, Vec2, Vec3, Vec4},
     sound::Sounds,
 };
@@ -24,52 +24,45 @@ pub struct Room {
     parts: Vec<EntityId>,
 
     hall: Option<Box<Room>>,
-    direction: Direction,
+    hall_direction: Direction,
     width: f32,
 }
 
 impl Room {
     fn new(man: &mut EntityManager, position: Vec2, dimensions: Scale) -> Self {
         let dimensions = dimensions + Vec2::diagonal(2.0);
-        let translate = position - 0.5 * dimensions;
-        let room_to_world = Mat4::translate(Vec3::from((translate, 0.0)));
 
-        let mut parts = Vec::new();
-        // make the background
-        let bgpos = position - 0.5 * dimensions;
-        let bg = archetype::background::new(
-            man,
-            Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH),
-            dimensions,
-        );
-        parts.push(bg);
-
-        // wall it off
-        let width = dimensions.x as usize;
-        let height = dimensions.y as usize;
-        for y in 0..height {
-            for x in 0..width {
-                if !(y == 0 || y == height - 1 || x == 0 || x == width - 1) {
-                    continue;
-                }
-
-                let room_pos = Vec4::new(x as f32, y as f32, 0.0, 1.0);
-                let world_pos4 = room_to_world * room_pos;
-                let p = Position::new(world_pos4.x, world_pos4.y, WALL_DEPTH);
-
-                let wall = archetype::wall::new(man, p);
-                parts.push(wall);
-            }
-        }
-
-        Self {
+        let mut this = Self {
             position,
             dimensions,
-            parts,
-            direction: Direction::default(),
+            parts: Vec::new(),
+            hall_direction: Direction::default(),
             hall: None,
             width: 0.0,
-        }
+        };
+
+        // wall it off
+        this.redraw_walls_and_bg(man);
+        this
+    }
+    
+    /// helps calculate offsets
+    /// returns the center for the new room with given dimensions
+    pub fn offset_from(&self, direction: Direction, dimensions: Scale) -> Vec2 {
+        let pos = if let Some(hall) = &self.hall {
+            hall.position
+        } else {
+            self.position
+        };
+        
+        let dim = if let Some(hall) = &self.hall {
+            hall.dimensions
+        } else {
+            self.dimensions
+        };
+
+        let d = Vec2::from(direction);
+        pos + 0.5 * d * (dim + dimensions)
     }
 
     fn make_hall(
@@ -109,13 +102,13 @@ impl Room {
 
         let hall = Self::new(man, pos, dim);
         self.hall = Some(Box::new(hall));
-        self.direction = direction;
+        self.hall_direction = direction;
         self.width = width;
     }
 
-    /// replaces walls, optionally putting triggers in their place
-    fn replace_walls(
-        &self,
+    /// breaks wall, optionally putting triggers in its place
+    fn break_wall(
+        &mut self,
         man: &mut EntityManager,
         side: Direction,
         hole_size: f32,
@@ -149,6 +142,7 @@ impl Room {
             _ => panic!(),
         };
 
+        let mut triggers = Vec::new();
         for &id in &self.parts {
             if let Some(mut wall) = man.view(id) {
                 let pos = wall.get_position();
@@ -157,38 +151,122 @@ impl Room {
                     wall.kill();
 
                     if let Some(tx) = tx.clone() {
-                        archetype::trigger::new(man, pos.into(), |_| true, tx);
+                        let t = archetype::trigger::new(man, pos.into(), |e| e.which() == Entities::SnakeHead, tx);
+                        triggers.push(t);
                     }
                 }
             }
+        }
+
+        for t in triggers {
+            self.parts.push(t);
         }
     }
 
     /// returns two trigger listeners
     /// the first triggers when the player leaves the room and enters the hallway
     /// the second triggers when the player is about to leave the hallway and enter the next room
-    pub fn open_hallway(&self, man: &mut EntityManager) -> (Receiver<()>, Receiver<()>) {
-        let hall = self.hall.as_ref().expect("should have hallway");
+    pub fn open_hallway(&mut self, man: &mut EntityManager) -> (Receiver<()>, Receiver<()>) {
+        let hall = self.hall.as_mut().expect("should have hallway");
 
         archetype::oneshot::play_sound(man, Sounds::RoomUnlocked);
 
         let (tx_near, rx_near) = mpsc::channel();
         let (tx_far, rx_far) = mpsc::channel();
 
-        hall.replace_walls(man, self.direction, self.width, Some(tx_far.clone()));
-        hall.replace_walls(man, self.direction.reverse(), self.width, None);
-        self.replace_walls(man, self.direction, self.width, Some(tx_near.clone()));
+        hall.break_wall(man, self.hall_direction, self.width, Some(tx_far.clone()));
+        hall.break_wall(man, self.hall_direction.reverse(), self.width, None);
+        self.break_wall(man, self.hall_direction, self.width, Some(tx_near.clone()));
 
         (rx_near, rx_far)
     }
 
-    pub fn _destroy(&mut self, man: &mut EntityManager) {
+    pub fn redraw_walls_and_bg(&mut self, man: &mut EntityManager) {
+        let mut new_parts = Vec::new();
+
+        let translate = self.position - 0.5 * self.dimensions;
+        let room_to_world = Mat4::translate(Vec3::from((translate, 0.0)));
+
+        // make the background
+        let bgpos = self.position - 0.5 * self.dimensions;
+        let bg = archetype::background::new(
+            man,
+            Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH),
+            self.dimensions,
+        );
+        
+        new_parts.push(bg);
+
+        let width = self.dimensions.x as usize;
+        let height = self.dimensions.y as usize;
+        for y in 0..height {
+            for x in 0..width {
+                if !(y == 0 || y == height - 1 || x == 0 || x == width - 1) {
+                    continue;
+                }
+
+                let room_pos = Vec4::new(x as f32, y as f32, 0.0, 1.0);
+                let world_pos4 = room_to_world * room_pos;
+                let p = Position::new(world_pos4.x, world_pos4.y, WALL_DEPTH);
+
+                let wall = archetype::wall::new(man, p);
+                new_parts.push(wall);
+            }
+        }
+
+        std::mem::swap(&mut new_parts, &mut self.parts);
+        for part in new_parts {
+            man.kill(part);
+        }
+    }
+
+    pub fn close_hall_entrance(&mut self, man: &mut EntityManager) {
+        let side = self.hall_direction;
+        if let Some(hall) = &mut self.hall {
+            let mut xs = f32::MAX;
+            let mut xe = f32::MIN;
+            let mut ys = f32::MAX;
+            let mut ye = f32::MIN;
+
+            let mut triggers = Vec::new();
+            for (idx, &ent) in hall.parts.iter().enumerate() {
+                if let Some(trigger) = man.view(ent) {
+                    if trigger.which() != Entities::Trigger { continue; }
+
+                    triggers.push(idx);
+                    let pos = trigger.get_position();
+                    xs = xs.min(pos.x);
+                    xe = xe.max(pos.x);
+
+                    ys = ys.min(pos.y);
+                    ye = ye.max(pos.y);
+                }
+            }
+
+            // purge triggers
+            for idx in triggers.into_iter().rev() {
+                let id = hall.parts.swap_remove(idx);
+                man.kill(id);
+            }
+
+            // make walls in their place
+            for y in ys as isize..=ye as isize {
+                let y = y as f32;
+                for x in xs as isize..=xs as isize {
+                    let x = x as f32;
+                    archetype::wall::new(man, Vec3::new(x, y, WALL_DEPTH));
+                }
+            }
+        }
+    }
+
+    pub fn destroy(&mut self, man: &mut EntityManager) {
         for &part in &self.parts {
             man.kill(part);
         }
 
         if let Some(hall) = &mut self.hall {
-            hall._destroy(man);
+            hall.destroy(man);
         }
     }
 
@@ -211,10 +289,26 @@ impl Room {
     }
 
     // Room types
+    fn empty(man: &mut EntityManager, position: Vec2, side: Direction) -> Self {
+        let mut ret = Self::new(man, position, Vec2::new(20.0, 20.0));
+        ret.make_hall(man, side, 6, 18);
+        ret
+    }
 
     pub fn spawn(man: &mut EntityManager) -> Self {
-        let mut ret = Self::new(man, Vec2::new(0.0, 0.0), Vec2::new(20.0, 20.0));
-        ret.make_hall(man, Direction::Down, 6, 18);
+        Self::empty(man, Vec2::new(0.0, 0.0), Direction::random())
+    }
+
+    pub fn next(man: &mut EntityManager, last: &Room) -> Self {
+        let next_pos = last.offset_from(last.hall_direction, last.dimensions);
+        let rand_side = loop {
+            let rand = Direction::random();
+            if rand != last.hall_direction.reverse() { 
+                break rand;
+            }
+        };
+        let mut ret = Self::empty(man, next_pos, rand_side);
+        ret.break_wall(man, last.hall_direction.reverse(), last.width, None);
         ret
     }
 
