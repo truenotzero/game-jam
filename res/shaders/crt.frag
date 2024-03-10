@@ -3,7 +3,7 @@
 #define RESOLUTION 256.0
 
 layout (binding = 0) uniform sampler2D screen;
-layout (location = 0) uniform int iTime;
+layout (location = 0) uniform uint iTime;
 
 in vec2 uv;
 out vec4 fragColor;
@@ -16,32 +16,28 @@ float vignette(vec2 uv) {
     return pow(b, 4.0); // control the vignette fade, higher = faster
 }
 
-void tonemap(inout vec3 frag) {
-    // reinhard tonemapping
-    frag = frag / (frag + vec3(1.0));
-}
-
 void gridify(inout vec3 frag) {
     vec2 res = RESOLUTION * uv;
     int x = int(res.x);
     int y = int(res.y);
 
 
+    float pop = 1.15;
     switch (y % 3) {
         case 0:
-            frag.r *= 1.2;
+            frag.r *= pop;
             break;
         case 1:
-            frag.g *= 1.8;
+            frag.g *= pop;
             break;
         case 2:
-            frag.b *= 1.1;
+            frag.b *= pop;
             break;
     }
     //frag.rgb = vec3(sin(fTime));
 
-    if ((iTime / 32 + x) % 2 == 0) {
-        frag *= 1.2;
+    if ((iTime / 32 + y) % 2 == 0) {
+        frag *= 1.05;
     }
 
 }
@@ -65,7 +61,6 @@ void main() {
     fragColor = texture(screen, wuv);
 
     gridify(fragColor.rgb);
-    tonemap(fragColor.rgb);
 
     float vig = 1.0 - vignette(uv);
     fragColor.rgb *= vig;

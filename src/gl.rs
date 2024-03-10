@@ -393,7 +393,7 @@ impl Uniform for f32 {
 
 impl Uniform for u128 {
     fn uniform(&self, layout_location: raw::GLint) {
-        call!(Uniform1i(layout_location, *self as _));
+        call!(Uniform1ui(layout_location, *self as _));
     }
 }
 
