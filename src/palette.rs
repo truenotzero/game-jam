@@ -92,6 +92,7 @@ pub fn crt() -> Palette {
         snake: Vec3::new(0.0, 1.0, 0.0),
         wall: Vec3::new(1.0, 1.0, 1.0),
         background: Vec3::rgb(1, 1, 1),
-        fruit: Vec3::new(1.0, 1.0, 0.0),
+        fruit: Vec3::new(1.0, 0.0, 0.0),
+        // enemy
     }
 }

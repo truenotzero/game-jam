@@ -401,7 +401,7 @@ pub struct Texture<'a, const T: raw::GLenum>(GlObject<'a>);
 
 pub type Texture2D<'a> = Texture<'a, { raw::TEXTURE_2D }>;
 
-impl <'a, const T: raw::GLenum> Texture<'a, T> {
+impl<'a, const T: raw::GLenum> Texture<'a, T> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateTextures(T, 1, &mut id));
@@ -435,7 +435,12 @@ impl<'a> RenderBuffer<'a> {
         call!(CreateRenderbuffers(1, &mut id));
         let this = Self(GlObject { id, _ctx: ctx });
         this.apply();
-        call!(RenderbufferStorage(RENDERBUFFER, DEPTH_COMPONENT, width, height));
+        call!(RenderbufferStorage(
+            RENDERBUFFER,
+            DEPTH_COMPONENT,
+            width,
+            height
+        ));
         this
     }
 
@@ -463,21 +468,58 @@ impl<'a> FrameBuffer<'a> {
         let color_buffer = Texture2D::new(ctx);
         call!(CreateFramebuffers(1, &mut id));
         color_buffer.apply();
-        call!(TexImage2D(color_buffer.type_(), 0, raw::RGBA as _, width, height, 0, raw::RGBA, raw::FLOAT, null()));
-        call!(TexParameteri(color_buffer.type_(), TEXTURE_MIN_FILTER, LINEAR as _));
-        call!(TexParameteri(color_buffer.type_(), TEXTURE_MAG_FILTER, LINEAR as _));
-        call!(TexParameteri(color_buffer.type_(), TEXTURE_WRAP_S, CLAMP_TO_EDGE as _));
-        call!(TexParameteri(color_buffer.type_(), TEXTURE_WRAP_T, CLAMP_TO_EDGE as _));
+        call!(TexImage2D(
+            color_buffer.type_(),
+            0,
+            raw::RGBA as _,
+            width,
+            height,
+            0,
+            raw::RGBA,
+            raw::FLOAT,
+            null()
+        ));
+        call!(TexParameteri(
+            color_buffer.type_(),
+            TEXTURE_MIN_FILTER,
+            LINEAR as _
+        ));
+        call!(TexParameteri(
+            color_buffer.type_(),
+            TEXTURE_MAG_FILTER,
+            LINEAR as _
+        ));
+        call!(TexParameteri(
+            color_buffer.type_(),
+            TEXTURE_WRAP_S,
+            CLAMP_TO_EDGE as _
+        ));
+        call!(TexParameteri(
+            color_buffer.type_(),
+            TEXTURE_WRAP_T,
+            CLAMP_TO_EDGE as _
+        ));
 
         let this = Self {
             id: GlObject { id, _ctx: ctx },
             depth_buffer,
             color_buffer,
         };
-        
+
         this.with(|this| {
-            call!(FramebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, this.color_buffer.type_(), this.color_buffer.0.id, 0));
-            call!(FramebufferRenderbuffer(FRAMEBUFFER, DEPTH_ATTACHMENT, RENDERBUFFER, this.depth_buffer.0.id));
+            call!(FramebufferTexture2D(
+                FRAMEBUFFER,
+                COLOR_ATTACHMENT0,
+                this.color_buffer.type_(),
+                this.color_buffer.0.id,
+                0
+            ));
+            call!(FramebufferRenderbuffer(
+                FRAMEBUFFER,
+                DEPTH_ATTACHMENT,
+                RENDERBUFFER,
+                this.depth_buffer.0.id
+            ));
             let status = call!(CheckFramebufferStatus(FRAMEBUFFER));
             assert!(status == raw::FRAMEBUFFER_COMPLETE);
         });
@@ -521,4 +563,3 @@ impl<'a> Drop for FrameBuffer<'a> {
         call!(DeleteFramebuffers(1, &self.id.id));
     }
 }
-

@@ -28,6 +28,7 @@ pub mod sounds {
     pub const MOVE: Sound = load!("sounds/move.wav");
     pub const ROOM_UNLOCKED: Sound = load!("sounds/room-unlocked.wav");
     pub const CAMERA_PAN: Sound = load!("sounds/camera-pan.wav");
+    pub const SWOOP: Sound = load!("sounds/swoop.wav");
 }
 
 // SHADERS //
@@ -51,8 +52,7 @@ pub mod shaders {
         load!("shaders/shield.geom"),
     ];
 
-    pub const CRT: Shader = &[
-        load!("shaders/crt.vert"),
-        load!("shaders/crt.frag"),
-    ];
+    pub const CRT: Shader = &[load!("shaders/crt.vert"), load!("shaders/crt.frag")];
+
+    pub const SWOOP: Shader = &[load!("shaders/swoop.vert"), load!("shaders/swoop.frag")];
 }

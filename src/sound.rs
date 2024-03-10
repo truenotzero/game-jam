@@ -20,6 +20,7 @@ pub enum Sounds {
     Move,
     RoomUnlocked,
     CameraPan,
+    Swoop,
 
     _NumSounds,
 }
@@ -35,6 +36,7 @@ impl Sounds {
             Self::Move => MOVE,
             Self::RoomUnlocked => ROOM_UNLOCKED,
             Self::CameraPan => CAMERA_PAN,
+            Self::Swoop => SWOOP,
 
             Self::_NumSounds => panic!(),
         }
@@ -54,6 +56,7 @@ impl TryFrom<u8> for Sounds {
             4 => S::Move,
             5 => S::RoomUnlocked,
             6 => S::CameraPan,
+            7 => S::Swoop,
 
             _ => Err(Error::InvalidSoundId)?,
         })
@@ -89,8 +92,8 @@ impl SoundManager {
 
             loop {
                 if let Ok(sound) = sound_queue.recv() {
-                        sl.play(&sounds[sound as usize]);
-                        sl.voice_count();
+                    sl.play(&sounds[sound as usize]);
+                    sl.voice_count();
                 } else {
                     return;
                 }

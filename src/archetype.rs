@@ -68,7 +68,7 @@ pub mod snake {
     use std::{process::exit, thread::sleep, time::Duration};
 
     use crate::{
-        archetype::fireball,
+        archetype::{fireball, swoop},
         entity::{
             Animation, Components, Direction, Entities, EntityId, EntityManager, EntityView,
             Position, SelfDestruct,
@@ -130,7 +130,7 @@ pub mod snake {
         let mut body = man.view(id).unwrap();
         body.set_position(position);
         body.set_self_destruct(lifetime);
-        body.new_property( "neighbors", neighbors);
+        body.new_property("neighbors", neighbors);
         body.access_timer(|t| t.set_threshold(STEP));
 
         id
@@ -186,6 +186,12 @@ pub mod snake {
                     K::A | K::Left => Direction::Left,
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
+                    K::F => {
+                        entity.request_spawn(Box::new(move |man| {
+                            swoop::new(man);
+                        }));
+                        continue;
+                    }
                     K::Space => {
                         entity.request_spawn(Box::new(move |man| {
                             fireball::new(
@@ -221,19 +227,22 @@ pub mod snake {
         entity.set_position(new_pos);
     }
 
-    fn draw_shield(pos: Vec3, neighbors: &[Direction], renderer: &mut RenderManager, palette: Palette) {
+    fn draw_shield(
+        pos: Vec3,
+        neighbors: &[Direction],
+        renderer: &mut RenderManager,
+        palette: Palette,
+    ) {
         use Direction as D;
 
-       let pos = Vec2::from(pos);
+        let pos = Vec2::from(pos);
 
         let shield = [D::Up, D::Down, D::Left, D::Right]
             .into_iter()
             .filter(|d| !neighbors.contains(d))
-            .fold(
-                Shield::new(pos, palette.snake, false, 0.4),
-                |shield, d| shield.push_side(d.into()),
-            )
-            ;
+            .fold(Shield::new(pos, palette.snake, false, 0.4), |shield, d| {
+                shield.push_side(d.into())
+            });
 
         // renderer.push(shield);
 
@@ -246,12 +255,10 @@ pub mod snake {
                 // fix should be applied
                 let fix = Shield::new(pos, palette.snake, true, 0.4)
                     .push_side(n1)
-                    .push_side(n2)
-                ;
-                
+                    .push_side(n2);
+
                 // renderer.push(fix);
             }
-
         }
     }
 
@@ -287,7 +294,7 @@ pub mod snake {
             // };
 
             let mut neighbors = Vec::new();
-             if entity.get_body_length() != 0 {
+            if entity.get_body_length() != 0 {
                 neighbors.push(entity.get_direction().reverse());
             };
 
@@ -310,7 +317,6 @@ pub mod snake {
             //         .push_side(back.right().into())
             //         .push_side(back.right().reverse().into()),
             // );
-
         } else {
             // body
             renderer.push(Tile {
@@ -356,7 +362,7 @@ pub mod fruit {
                 Components::Position,
                 Components::Collider,
                 Components::Spawner,
-                Components::Sound
+                Components::Sound,
             ],
         );
 
@@ -486,6 +492,58 @@ pub mod trigger {
 
             this.kill();
         }
+    }
+}
+
+pub mod swoop {
+    use std::time::Duration;
+
+    use crate::{
+        entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView},
+        math::Vec3,
+        render::{self, RenderManager},
+        sound::Sounds,
+    };
+
+    pub fn new(man: &mut EntityManager) -> EntityId {
+        let id = man.spawn(
+            Entities::Swoop,
+            &[
+                Components::Position,
+                Components::Direction,
+                Components::Collider,
+                Components::Speed,
+                Components::Scale,
+            ],
+        );
+
+        let position = Default::default();
+        let direction = Direction::Up;
+        let speed = 2.5;
+        let scale = 1.0;
+
+        let mut swoop = man.view(id).unwrap();
+        swoop.set_position(position);
+        swoop.set_direction(direction);
+        swoop.set_speed(speed);
+        swoop.set_scale((scale).into());
+
+        super::oneshot::play_sound(man, Sounds::Swoop);
+
+        id
+    }
+
+    pub fn tick(dt: Duration, this: &mut EntityView) {
+        let pos = this.get_position();
+        let d = dt.as_secs_f32() * this.get_speed() * Vec3::from(this.get_direction());
+        this.set_position(pos + d);
+    }
+
+    pub fn draw(this: EntityView, renderer: &mut RenderManager) {
+        let pos = this.get_position().into();
+        let scale = this.get_scale().x;
+        let direction = this.get_direction();
+        renderer.push(render::swoop::Swoop::new(pos, scale, direction));
     }
 }
 

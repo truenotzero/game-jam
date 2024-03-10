@@ -1,29 +1,36 @@
 use core::slice;
-use std::{collections::HashMap, mem::size_of_val, ptr::null, time::{Duration, Instant}};
+use std::{collections::HashMap, mem::size_of_val, time::Instant};
 
-use crate::{gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao}, math::Vec4, resources};
+use crate::{
+    gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao},
+    resources,
+};
 
 use self::{
     fireball::{Fireball, FireballManager},
-    instanced::{quad_vertex_helper, quad_vertex_helper_local_center, InstancedShapeManager, Tile},
+    instanced::{InstancedShapeManager, Tile},
     shield::{Shield, ShieldManager},
+    swoop::{Swoop, SwoopManager},
 };
 
 pub mod fireball;
 pub mod instanced;
 pub mod shield;
+pub mod swoop;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum RenderType {
     Tile,
     Fireball,
     Shield,
+    Swoop,
 }
 
 pub enum Element {
     Tile(Tile),
     Fireball(Fireball),
     Shield(Shield),
+    Swoop(Swoop),
 }
 
 impl From<Tile> for Element {
@@ -44,10 +51,17 @@ impl From<Shield> for Element {
     }
 }
 
+impl From<Swoop> for Element {
+    fn from(value: Swoop) -> Self {
+        Self::Swoop(value)
+    }
+}
+
 pub enum Renderer<'a> {
     Tile(InstancedShapeManager<'a>),
     Fireball(FireballManager<'a>),
     Shield(ShieldManager<'a>),
+    Swoop(SwoopManager<'a>),
 }
 
 impl<'a> From<InstancedShapeManager<'a>> for Renderer<'a> {
@@ -68,12 +82,19 @@ impl<'a> From<ShieldManager<'a>> for Renderer<'a> {
     }
 }
 
+impl<'a> From<SwoopManager<'a>> for Renderer<'a> {
+    fn from(value: SwoopManager<'a>) -> Self {
+        Self::Swoop(value)
+    }
+}
+
 impl<'a> Renderer<'a> {
     fn render_type(&self) -> RenderType {
         match self {
             Renderer::Tile(_) => RenderType::Tile,
             Renderer::Fireball(_) => RenderType::Fireball,
             Renderer::Shield(_) => RenderType::Shield,
+            Renderer::Swoop(_) => RenderType::Swoop,
         }
     }
 
@@ -95,6 +116,11 @@ impl<'a> Renderer<'a> {
                     shield.push(s)
                 }
             }
+            Renderer::Swoop(swoop) => {
+                if let Element::Swoop(s) = element {
+                    swoop.push(s)
+                }
+            }
         }
     }
 
@@ -103,6 +129,7 @@ impl<'a> Renderer<'a> {
             Renderer::Tile(t) => t.draw(),
             Renderer::Fireball(f) => f.draw(),
             Renderer::Shield(s) => s.draw(),
+            Renderer::Swoop(s) => s.draw(),
         }
     }
 }
@@ -123,10 +150,7 @@ impl<'a> RenderManager<'a> {
         let vbo = ArrayBuffer::new(ctx);
         let vertex_positions = [
             // positions    uv coords
-            -1.0,  1.0,     0.0, 1.0,
-             1.0,  1.0,     1.0, 1.0,
-            -1.0, -1.0,     0.0, 0.0,
-             1.0, -1.0,     1.0, 0.0f32,
+            -1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 1.0, 0.0f32,
         ];
         // safe because it's just reintrepreting the data to send to the GPU
         // cbb to waste more time on pointless abstractions I won't reuse
@@ -173,6 +197,10 @@ impl<'a> RenderManager<'a> {
                 .renderers
                 .get_mut(&RenderType::Shield)
                 .map(|r| r.push(shield)),
+            Element::Swoop(swoop) => self
+                .renderers
+                .get_mut(&RenderType::Swoop)
+                .map(|r| r.push(swoop)),
         };
     }
 
@@ -187,6 +215,7 @@ impl<'a> RenderManager<'a> {
             self.renderers
                 .get_mut(&RenderType::Shield)
                 .map(|r| r.draw());
+            self.renderers.get_mut(&RenderType::Swoop).map(|r| r.draw());
             self.renderers
                 .get_mut(&RenderType::Fireball)
                 .map(|r| r.draw());
@@ -199,5 +228,79 @@ impl<'a> RenderManager<'a> {
         self.start_time.elapsed().as_millis().uniform(0);
         self.framebuffer.bind_texture(0);
         call!(DrawArrays(TRIANGLE_STRIP, 0, 4));
+    }
+}
+
+struct VaoHelper<'a> {
+    vao: Vao<'a>,
+    attrib: gl::raw::GLuint,
+}
+
+impl<'a> VaoHelper<'a> {
+    pub fn new(ctx: &'a DrawContext) -> Self {
+        let vao = Vao::new(ctx);
+        vao.apply();
+        Self { vao, attrib: 0 }
+    }
+
+    pub fn bind_buffer(self, buf: &ArrayBuffer) -> Self {
+        buf.apply();
+        self
+    }
+
+    pub fn push_attrib(
+        mut self,
+        size: gl::raw::GLint,
+        type_: gl::raw::GLenum,
+        normalized: gl::raw::GLboolean,
+        stride: usize,
+        pointer: usize,
+    ) -> Self {
+        gl::call!(EnableVertexAttribArray(self.attrib));
+        gl::call!(VertexAttribPointer(
+            self.attrib,
+            size,
+            type_,
+            normalized,
+            stride as _,
+            pointer as _
+        ));
+
+        // println!(
+        //     "[{}] Attribute=[size:{},type:{},normalized:{},stride:{},pointer:{}]",
+        //     self.attrib, size, type_, normalized, stride, pointer
+        // );
+
+        self.attrib += 1;
+        self
+    }
+
+    pub fn push_int_attrib(
+        mut self,
+        size: gl::raw::GLint,
+        type_: gl::raw::GLenum,
+        stride: usize,
+        pointer: usize,
+    ) -> Self {
+        gl::call!(EnableVertexAttribArray(self.attrib));
+        gl::call!(VertexAttribIPointer(
+            self.attrib,
+            size,
+            type_,
+            stride as _,
+            pointer as _
+        ));
+
+        // println!(
+        //     "[{}] Int Attribute=[size:{},type:{},stride:{},pointer:{}]",
+        //     self.attrib, size, type_, stride, pointer
+        // );
+
+        self.attrib += 1;
+        self
+    }
+
+    pub fn build(self) -> Vao<'a> {
+        self.vao
     }
 }

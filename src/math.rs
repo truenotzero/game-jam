@@ -71,6 +71,28 @@ impl Vec2 {
     pub fn dot(lhs: Self, rhs: Self) -> f32 {
         lhs.x * rhs.x + lhs.y * rhs.y
     }
+
+    pub fn len2(self) -> f32 {
+        Self::dot(self, self)
+    }
+
+    pub fn len(self) -> f32 {
+        self.len2().sqrt()
+    }
+
+    pub fn normalize(mut self) -> Self {
+        let l = 1.0 / self.len();
+        self.x *= l;
+        self.y *= l;
+
+        self
+    }
+
+    pub fn angle(self) -> f32 {
+        // a.b = |a||b|cos(a)
+        let cos = Self::dot(self.normalize(), Self::UP);
+        cos.acos()
+    }
 }
 
 impl PartialEq for Vec2 {
@@ -111,7 +133,7 @@ impl Mul<Vec2> for f32 {
 
 impl Mul for Vec2 {
     type Output = Self;
-    
+
     fn mul(mut self, rhs: Self) -> Self::Output {
         self.x *= rhs.x;
         self.y *= rhs.y;
@@ -498,6 +520,16 @@ impl Mat4 {
         Self::scale((-1.0, 1.0).into())
     }
 
+    pub fn rotate(angle: f32) -> Self {
+        let mut ret = Self::zero();
+        let (s, c) = angle.sin_cos();
+        ret[0][0] = c;
+        ret[0][1] = s;
+        ret[1][0] = -s;
+        ret[1][1] = c;
+        ret
+    }
+
     // screen projection matrix with each tile's 0,0 being offset
     pub fn screen(position: Vec2, width: f32, height: f32) -> Self {
         let l = position.x - 0.5 * width;
@@ -583,6 +615,16 @@ impl Mul<Vec4> for Mat4 {
         }
 
         Vec4::new(ret[0], ret[1], ret[2], ret[3])
+    }
+}
+
+impl Mul<Vec2> for Mat4 {
+    type Output = Vec2;
+
+    fn mul(self, rhs: Vec2) -> Self::Output {
+        let vec4 = Vec4::new(rhs.x, rhs.y, 0.0, 0.0);
+        let intermediate = self * vec4;
+        Vec2::new(intermediate.x, intermediate.y)
     }
 }
 

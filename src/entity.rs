@@ -1,10 +1,15 @@
 use core::fmt;
 use std::{
-    any::Any, cell::{Ref, RefCell, RefMut}, collections::HashMap, os::windows::thread, rc::Rc, sync::mpsc::{self, Receiver, Sender}, time::Duration
+    any::Any,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+    sync::mpsc::{self, Receiver, Sender},
+    time::Duration,
 };
 
 use glfw::Key;
-use rand::{random, thread_rng, Rng};
+use rand::{thread_rng, Rng};
 
 use crate::{
     math::{Vec2, Vec3},
@@ -26,6 +31,7 @@ pub enum Entities {
     _Enemy,
     Fireball,
     Trigger,
+    Swoop,
 }
 
 impl fmt::Display for Entities {
@@ -42,6 +48,7 @@ impl Entities {
             Self::SnakeHead => snake::head_tick(dt, entity),
             Self::SnakeBody => snake::body_tick(dt, entity),
             Self::Fireball => fireball::tick(dt, entity),
+            Self::Swoop => swoop::tick(dt, entity),
             _ => (),
         }
     }
@@ -55,6 +62,7 @@ impl Entities {
             Self::Fruit => fruit::draw(entity, renderer, palette),
             Self::SnakeHead | Self::SnakeBody => snake::draw(entity, renderer, palette),
             Self::Fireball => fireball::draw(entity, renderer, palette),
+            Self::Swoop => swoop::draw(entity, renderer),
             _ => (),
         }
     }
@@ -139,10 +147,10 @@ impl Direction {
             Direction::Right,
             Direction::Left,
         ];
-        
+
         let mut rng = thread_rng();
         let idx = rng.gen_range(0..CHOICES.len());
-        
+
         CHOICES[idx]
     }
 }

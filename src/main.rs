@@ -16,6 +16,7 @@ use palette::Palette;
 use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
+use render::swoop::SwoopManager;
 use render::RenderManager;
 use sound::{SoundManager, Sounds};
 use world::Room;
@@ -96,6 +97,7 @@ impl<'a> Game<'a> {
         renderer.add_renderer(fireball_renderer);
 
         renderer.add_renderer(ShieldManager::new(ctx, 512));
+        renderer.add_renderer(SwoopManager::new(ctx, 16));
 
         Self {
             pan_to_hall_trigger: None,
@@ -183,7 +185,9 @@ impl<'a> Game<'a> {
             .unwrap_or_default()
         {
             // swap rooms
-            self.last_room.as_mut().map(|last_room| std::mem::swap(&mut self.current_room, last_room));
+            self.last_room
+                .as_mut()
+                .map(|last_room| std::mem::swap(&mut self.current_room, last_room));
             // pan to new room
             self.move_camera(self.current_room.view());
         }

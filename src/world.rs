@@ -45,7 +45,7 @@ impl Room {
         this.redraw_walls_and_bg(man);
         this
     }
-    
+
     /// helps calculate offsets
     /// returns the center for the new room with given dimensions
     pub fn offset_from(&self, direction: Direction, dimensions: Scale) -> Vec2 {
@@ -54,7 +54,7 @@ impl Room {
         } else {
             self.position
         };
-        
+
         let dim = if let Some(hall) = &self.hall {
             hall.dimensions
         } else {
@@ -151,7 +151,12 @@ impl Room {
                     wall.kill();
 
                     if let Some(tx) = tx.clone() {
-                        let t = archetype::trigger::new(man, pos.into(), |e| e.which() == Entities::SnakeHead, tx);
+                        let t = archetype::trigger::new(
+                            man,
+                            pos.into(),
+                            |e| e.which() == Entities::SnakeHead,
+                            tx,
+                        );
                         triggers.push(t);
                     }
                 }
@@ -194,7 +199,7 @@ impl Room {
             Position::new(bgpos.x, bgpos.y, BACKGROUND_DEPTH),
             self.dimensions,
         );
-        
+
         new_parts.push(bg);
 
         let width = self.dimensions.x as usize;
@@ -231,7 +236,9 @@ impl Room {
             let mut triggers = Vec::new();
             for (idx, &ent) in hall.parts.iter().enumerate() {
                 if let Some(trigger) = man.view(ent) {
-                    if trigger.which() != Entities::Trigger { continue; }
+                    if trigger.which() != Entities::Trigger {
+                        continue;
+                    }
 
                     triggers.push(idx);
                     let pos = trigger.get_position();
@@ -303,7 +310,7 @@ impl Room {
         let next_pos = last.offset_from(last.hall_direction, last.dimensions);
         let rand_side = loop {
             let rand = Direction::random();
-            if rand != last.hall_direction.reverse() { 
+            if rand != last.hall_direction.reverse() {
                 break rand;
             }
         };

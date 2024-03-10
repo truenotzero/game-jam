@@ -1,4 +1,4 @@
-use std::mem::{self, offset_of, size_of};
+use std::mem::{offset_of, size_of};
 
 use crate::{
     common::{as_bytes, AsBytes},
@@ -6,6 +6,8 @@ use crate::{
     math::{Vec2, Vec3},
     resources,
 };
+
+use super::VaoHelper;
 
 #[repr(C)]
 pub struct Shield {
@@ -51,80 +53,6 @@ impl Shield {
 
 as_bytes!(Shield);
 
-struct VaoHelper<'a> {
-    vao: Vao<'a>,
-    attrib: gl::raw::GLuint,
-}
-
-impl<'a> VaoHelper<'a> {
-    pub fn new(ctx: &'a DrawContext) -> Self {
-        let vao = Vao::new(ctx);
-        vao.apply();
-        Self { vao, attrib: 0 }
-    }
-
-    pub fn bind_buffer(self, buf: &ArrayBuffer) -> Self {
-        buf.apply();
-        self
-    }
-
-    pub fn push_attrib(
-        mut self,
-        size: gl::raw::GLint,
-        type_: gl::raw::GLenum,
-        normalized: gl::raw::GLboolean,
-        stride: usize,
-        pointer: usize,
-    ) -> Self {
-        gl::call!(EnableVertexAttribArray(self.attrib));
-        gl::call!(VertexAttribPointer(
-            self.attrib,
-            size,
-            type_,
-            normalized,
-            stride as _,
-            pointer as _
-        ));
-
-        // println!(
-        //     "[{}] Attribute=[size:{},type:{},normalized:{},stride:{},pointer:{}]",
-        //     self.attrib, size, type_, normalized, stride, pointer
-        // );
-
-        self.attrib += 1;
-        self
-    }
-
-    pub fn push_int_attrib(
-        mut self,
-        size: gl::raw::GLint,
-        type_: gl::raw::GLenum,
-        stride: usize,
-        pointer: usize,
-    ) -> Self {
-        gl::call!(EnableVertexAttribArray(self.attrib));
-        gl::call!(VertexAttribIPointer(
-            self.attrib,
-            size,
-            type_,
-            stride as _,
-            pointer as _
-        ));
-
-        // println!(
-        //     "[{}] Int Attribute=[size:{},type:{},stride:{},pointer:{}]",
-        //     self.attrib, size, type_, stride, pointer
-        // );
-
-        self.attrib += 1;
-        self
-    }
-
-    pub fn build(self) -> Vao<'a> {
-        self.vao
-    }
-}
-
 pub struct ShieldManager<'a> {
     vao: Vao<'a>,
     vbo: ArrayBuffer<'a>,
@@ -167,7 +95,12 @@ impl<'a> ShieldManager<'a> {
                 size_of::<Shield>(),
                 offset_of!(Shield, radius),
             )
-            .push_int_attrib(1, gl::raw::BYTE, size_of::<Shield>(), offset_of!(Shield, is_fix))
+            .push_int_attrib(
+                1,
+                gl::raw::BYTE,
+                size_of::<Shield>(),
+                offset_of!(Shield, is_fix),
+            )
             .push_int_attrib(
                 1,
                 gl::raw::BYTE,
@@ -204,26 +137,29 @@ impl<'a> ShieldManager<'a> {
             );
 
         // let shader = Shader::from_file(ctx, Path::new("res/shaders/shield")).unwrap();
-        let shader = Shader::from_resource(ctx, resources::shaders::SHIELD).expect("shield shader should compile properly");
+        let shader = Shader::from_resource(ctx, resources::shaders::SHIELD)
+            .expect("shield shader should compile properly");
         Self {
             vao: vao.build(),
             vbo,
             shader,
 
             max_shields,
-            
+
             shields: Vec::new(),
             fixes: Vec::new(),
         }
     }
 
     fn update_buffer(&mut self, is_fixes: bool) -> gl::raw::GLint {
-        let buf = if is_fixes { &mut self.fixes } else { &mut self.shields };
+        let buf = if is_fixes {
+            &mut self.fixes
+        } else {
+            &mut self.shields
+        };
         for (idx, shield) in buf.iter_mut().enumerate() {
             self.vbo
-                .update(idx * size_of::<Shield>(), unsafe {
-                    shield.as_bytes()
-                });
+                .update(idx * size_of::<Shield>(), unsafe { shield.as_bytes() });
         }
 
         let len = buf.len() as _;
@@ -243,10 +179,9 @@ impl<'a> ShieldManager<'a> {
     pub fn draw(&mut self) {
         self.vao.apply();
         self.shader.apply();
-        
+
         let fixes = self.update_buffer(true);
         if fixes > 0 {
-            
             gl::call!(DrawArrays(POINTS, 0, fixes));
         }
 
@@ -254,6 +189,5 @@ impl<'a> ShieldManager<'a> {
         if shields > 0 {
             gl::call!(DrawArrays(POINTS, 0, shields));
         }
-
     }
 }
