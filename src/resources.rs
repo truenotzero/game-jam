@@ -29,6 +29,9 @@ pub mod sounds {
     pub const ROOM_UNLOCKED: Sound = load!("sounds/room-unlocked.wav");
     pub const CAMERA_PAN: Sound = load!("sounds/camera-pan.wav");
     pub const SWOOP: Sound = load!("sounds/swoop.wav");
+    pub const CRT_ON: Sound = load!("sounds/crt-on.wav");
+    pub const CRT_CLICK: Sound = load!("sounds/crt-click.wav");
+    pub const CRT_BUZZ: Sound = load!("sounds/crt-buzz.wav");
 }
 
 // SHADERS //

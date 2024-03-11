@@ -4,6 +4,7 @@
 
 layout (binding = 0) uniform sampler2D screen;
 layout (location = 0) uniform uint iTime;
+layout (location = 1) uniform float brightness;
 
 in vec2 uv;
 out vec4 fragColor;
@@ -13,7 +14,7 @@ float vignette(vec2 uv) {
     uv = abs(uv) - 0.0; // 'pushes' out the vignette, more negative = more far
     float b = max(uv.x, uv.y);
     b = max(b, 0.0); // prevent overflow ( = black box in the middle of the screen)
-    return pow(b, 4.0); // control the vignette fade, higher = faster
+    return pow(b, 8.0); // control the vignette fade, higher = faster
 }
 
 void gridify(inout vec3 frag) {
@@ -47,7 +48,7 @@ vec2 warp(vec2 uv) {
 
     float l = length(uv);
     float e = 1.0 * smoothstep(-0.1, 8.0, l); // lower value = less 'curvature'
-    float s = 0.95; // controls the 'spread' of the curvature (lower = more spread towards edges)
+    float s = 0.99; // controls the 'spread' of the curvature (lower = more spread towards edges)
     float p = pow(l, e);
     uv *= s * p;
 
@@ -64,4 +65,5 @@ void main() {
 
     float vig = 1.0 - vignette(uv);
     fragColor.rgb *= vig;
+    fragColor.a = brightness;
 }

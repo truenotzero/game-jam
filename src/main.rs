@@ -4,6 +4,7 @@ use std::mem;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use common::AsBytes;
@@ -91,6 +92,13 @@ impl<'a> Game<'a> {
             unsafe { starting_view.as_bytes() },
             gl::buffer_flags::DYNAMIC_STORAGE,
         );
+
+        // crt startup sequence
+        sound.play(Sounds::CrtClick);
+        sleep(Duration::from_millis(1750));
+        sound.play(Sounds::CrtBuzz);
+        sleep(Duration::from_millis(1250));
+        sound.play(Sounds::CrtOn);
 
         let mut renderer = RenderManager::new(ctx);
         renderer.add_renderer(tile_renderer);
@@ -298,9 +306,6 @@ impl Window {
         gl::call!(Enable(gl::raw::FRAMEBUFFER_SRGB));
         // enable AA
         gl::call!(Enable(MULTISAMPLE));
-        // set void color
-        let clear_color = Vec3::rgb(7, 14, 54).srgb_to_linear();
-        gl::call!(ClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0));
 
         Self {
             width,
@@ -315,7 +320,8 @@ impl Window {
 
     fn run(mut self) {
         self.window.show();
-
+        gl::call!(Clear(COLOR_BUFFER_BIT));
+        self.window.swap_buffers();
         let mut game = Game::new(&self.draw_context, self.width, self.height);
 
         let mut last = Instant::now();

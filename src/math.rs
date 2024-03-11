@@ -754,6 +754,10 @@ pub mod ease {
 
         c3 * p * p * p - c1 * p * p
     }
+    
+    pub fn in_expo(p: f32) -> f32 {
+        (2.0f32).powf(10.0 * p - 10.0)
+    }
 
     pub fn out_expo(p: f32) -> f32 {
         1.0 - 2.0f32.powf(-10.0 * p)

@@ -21,6 +21,9 @@ pub enum Sounds {
     RoomUnlocked,
     CameraPan,
     Swoop,
+    CrtOn,
+    CrtClick,
+    CrtBuzz,
 
     _NumSounds,
 }
@@ -37,6 +40,9 @@ impl Sounds {
             Self::RoomUnlocked => ROOM_UNLOCKED,
             Self::CameraPan => CAMERA_PAN,
             Self::Swoop => SWOOP,
+            Self::CrtOn => CRT_ON,
+            Self::CrtClick => CRT_CLICK,
+            Self::CrtBuzz => CRT_BUZZ,
 
             Self::_NumSounds => panic!(),
         }
@@ -57,6 +63,9 @@ impl TryFrom<u8> for Sounds {
             5 => S::RoomUnlocked,
             6 => S::CameraPan,
             7 => S::Swoop,
+            8 => S::CrtOn,
+            9 => S::CrtClick,
+            10 => S::CrtBuzz,
 
             _ => Err(Error::InvalidSoundId)?,
         })

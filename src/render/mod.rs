@@ -1,9 +1,8 @@
 use core::slice;
-use std::{collections::HashMap, mem::size_of_val, time::Instant};
+use std::{collections::HashMap, mem::size_of_val, time::{Duration, Instant}};
 
 use crate::{
-    gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao},
-    resources,
+    gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao}, math::{ease, Vec3}, resources
 };
 
 use self::{
@@ -226,6 +225,18 @@ impl<'a> RenderManager<'a> {
         self.vao.apply();
         self.shader.apply();
         self.start_time.elapsed().as_millis().uniform(0);
+        // set crt brightness
+        const CRT_LOADTIME: Duration = Duration::from_millis(1500);
+        let p = self.start_time.elapsed().as_secs_f32() / CRT_LOADTIME.as_secs_f32();
+        let brightness = ease::in_expo(p);
+        brightness.uniform(1);
+
+        if brightness >= 1.0 {
+            // set void color
+            let clear_color = Vec3::rgb(7, 14, 54).srgb_to_linear();
+            gl::call!(ClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0));
+        }
+
         self.framebuffer.bind_texture(0);
         call!(DrawArrays(TRIANGLE_STRIP, 0, 4));
     }
