@@ -11,15 +11,23 @@ macro_rules! load {
 // }
 
 pub type Resource = &'static [u8];
+pub type Texture = Resource;
 pub type Sound = Resource;
 pub type Shader = &'static [Resource];
 
 // TEXTURES //
 pub mod textures {
-    use super::Resource;
+    use super::Texture;
 
-    pub const ICON: Resource = load!("textures/favicon.ico");
-    pub const SNEK: Resource = load!("textures/snek.png");
+    pub const ICON: Texture = load!("textures/favicon.ico");
+
+pub mod text {
+    use super::Texture;
+
+    pub const SNEK: Texture = load!("textures/text/snek.png");
+    pub const CONTROLS: Texture = load!("textures/text/controls.png");
+    pub const FRUIT: Texture = load!("textures/text/fruit.png");
+}
 }
 
 // SOUNDS //

@@ -1,11 +1,10 @@
 use core::{arch, panic};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::{os::windows::thread, sync::mpsc::{self, Receiver, Sender}};
+
+use rand::{thread_rng, Rng};
 
 use crate::{
-    archetype,
-    entity::{Direction, Entities, EntityId, EntityManager, Position, Scale},
-    math::{Mat4, Vec2, Vec3, Vec4},
-    sound::Sounds,
+    archetype, entity::{Direction, Entities, EntityId, EntityManager, Position, Scale}, math::{Mat4, Vec2, Vec3, Vec4}, render::text::TextNames, sound::Sounds
 };
 
 const BACKGROUND_DEPTH: f32 = 0.9;
@@ -277,13 +276,13 @@ impl Room {
         }
     }
 
-    // view the room while keeping a 1:1 aspect ratio
+    /// view the room while keeping a 1:1 aspect ratio
     pub fn view(&self) -> Mat4 {
         let dim = self.dimensions.x.max(self.dimensions.y);
         Mat4::screen(self.position, dim, dim)
     }
 
-    // view the hall while keeping a 1:1 aspect ratio
+    /// view the hall while keeping a 1:1 aspect ratio
     pub fn view_hall(&self) -> Mat4 {
         if let Some(hall) = &self.hall {
             // let dim = hall.dimensions;
@@ -295,18 +294,42 @@ impl Room {
         }
     }
 
+    /// places text in room-space coordinates
+    pub fn text_at(&mut self, man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) {
+        let txt = archetype::text::new(man, name, self.position + position, scale);
+        self.parts.push(txt);
+    }
+
+    /// generate a random position in the room (in world space coordinates)
+    pub fn random_position(&self) -> Vec2 {
+        let mut rng = thread_rng();
+        let x = rng.gen_range(1.0..=self.dimensions.x - 1.0).floor();
+        let y = rng.gen_range(1.0..=self.dimensions.y - 1.0).floor();
+        self.position + (x, y).into()
+    }
+
     // Room types
-    fn empty(man: &mut EntityManager, position: Vec2, side: Direction) -> Self {
-        let mut ret = Self::new(man, position, Vec2::new(20.0, 20.0));
+    fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale) -> Self {
+        let mut ret = Self::new(man, position, dimensions);
         ret.make_hall(man, side, 6, 18);
         ret
     }
 
-    pub fn spawn(man: &mut EntityManager) -> Self {
-        Self::empty(man, Vec2::new(0.0, 0.0), Direction::random())
+    pub fn tut_controls(man: &mut EntityManager) -> Self {
+        let mut ret = Self::empty(man, Vec2::new(0.0, 0.0), Direction::random(), Vec2::diagonal(20.0));
+        ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 7.0);
+        ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 14.0);
+        ret
     }
 
-    pub fn next(man: &mut EntityManager, last: &Room) -> Self {
+    pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> Self {
+        let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
+        ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
+        archetype::fruit::put_at(man, ret.random_position());
+        ret
+    }
+
+    pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
         let next_pos = last.offset_from(last.hall_direction, last.dimensions);
         let rand_side = loop {
             let rand = Direction::random();
@@ -314,7 +337,7 @@ impl Room {
                 break rand;
             }
         };
-        let mut ret = Self::empty(man, next_pos, rand_side);
+        let mut ret = Self::empty(man, next_pos, rand_side, dimensions);
         ret.break_wall(man, last.hall_direction.reverse(), last.width, None);
         ret
     }

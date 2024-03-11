@@ -32,6 +32,7 @@ pub enum Entities {
     Fireball,
     Trigger,
     Swoop,
+    Text,
 }
 
 impl fmt::Display for Entities {
@@ -63,6 +64,7 @@ impl Entities {
             Self::SnakeHead | Self::SnakeBody => snake::draw(entity, renderer, palette),
             Self::Fireball => fireball::draw(entity, renderer, palette),
             Self::Swoop => swoop::draw(entity, renderer),
+            Self::Text => text::draw(entity, renderer),
             _ => (),
         }
     }
@@ -334,6 +336,10 @@ impl<'m> EntityView<'m> {
 
     pub fn new_property(&self, name: &'static str, value: impl Any) {
         self.storage_mut().new_property(self.id, name, value)
+    }
+
+    pub fn has_property(&self, name: &str) -> bool {
+        self.storage().get_property(self.id, name).is_some()
     }
 
     pub fn with_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&P) -> R) -> R {

@@ -405,7 +405,21 @@ impl<'a, const T: raw::GLenum> Texture<'a, T> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let mut id = 0;
         call!(CreateTextures(T, 1, &mut id));
-        Self(GlObject { id, _ctx: ctx })
+
+        let this = Self(GlObject { id, _ctx: ctx });
+        this.apply();
+        call!(TexParameteri(
+            this.type_(),
+            TEXTURE_MIN_FILTER,
+            LINEAR as _
+        ));
+        call!(TexParameteri(
+            this.type_(),
+            TEXTURE_MAG_FILTER,
+            LINEAR as _
+        ));
+
+        this
     }
 
     pub fn bind(&self, slot: usize) {
@@ -478,16 +492,6 @@ impl<'a> FrameBuffer<'a> {
             raw::RGBA,
             raw::FLOAT,
             null()
-        ));
-        call!(TexParameteri(
-            color_buffer.type_(),
-            TEXTURE_MIN_FILTER,
-            LINEAR as _
-        ));
-        call!(TexParameteri(
-            color_buffer.type_(),
-            TEXTURE_MAG_FILTER,
-            LINEAR as _
         ));
         call!(TexParameteri(
             color_buffer.type_(),

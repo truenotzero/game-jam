@@ -1,5 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
         ".\\Cargo.toml"
-    ]
+    ],
+    
+    "glsllint.glslangValidatorPath": "./glslValidator.exe"
 }

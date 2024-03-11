@@ -82,9 +82,8 @@ impl<'a> Game<'a> {
         let (mouse_tx, mouse_rx) = mpsc::channel();
         let sound = SoundManager::new();
         let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.player());
-        archetype::fruit::new(&mut man);
         archetype::snake::new(&mut man);
-        let room = world::Room::spawn(&mut man);
+        let room = world::Room::tut_controls(&mut man);
         let starting_view = room.view();
 
         let common_uniforms = UniformBuffer::new(ctx);
@@ -95,18 +94,20 @@ impl<'a> Game<'a> {
         );
 
         // crt startup sequence
+        /*
         sound.play(Sounds::CrtClick);
         sleep(Duration::from_millis(1250));
         sound.play(Sounds::CrtBuzz);
         sleep(Duration::from_millis(1500));
         sound.play(Sounds::CrtOn);
+        */
 
         let mut renderer = RenderManager::new(ctx);
         renderer.add_renderer(tile_renderer);
         renderer.add_renderer(fireball_renderer);
         renderer.add_renderer(ShieldManager::new(ctx, 512));
         renderer.add_renderer(SwoopManager::new(ctx, 16));
-        renderer.add_renderer(TextManager::new(ctx, 16));
+        renderer.add_renderer(TextManager::new(ctx));
 
         Self {
             pan_to_hall_trigger: None,
@@ -183,7 +184,7 @@ impl<'a> Game<'a> {
                 last.destroy(&mut self.man);
             }
 
-            self.last_room = Some(Room::next(&mut self.man, &self.current_room));
+            self.last_room = Some(Room::tut_fruit(&mut self.man, &self.current_room));
         }
 
         // hall leave trigger
@@ -296,8 +297,8 @@ impl Window {
 
         // set up opengl stuff here
         // backface culling & apparently I can't specify vertices
-        gl::call!(FrontFace(CW));
-        gl::call!(Enable(CULL_FACE));
+        //gl::call!(FrontFace(CW));
+        //gl::call!(Enable(CULL_FACE));
         // enable depth buffer
         gl::call!(Enable(DEPTH_TEST));
         // enable blending

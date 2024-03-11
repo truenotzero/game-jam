@@ -353,7 +353,7 @@ pub mod fruit {
 
     use crate::{
         entity::{Components, Entities, EntityId, EntityManager, EntityView},
-        math::{Mat4, Vec2, Vec3},
+        math::{Mat4, Vec2, Vec3, Vec4},
         palette::Palette,
         render::{instanced::Tile, RenderManager},
         sound::Sounds,
@@ -375,11 +375,28 @@ pub mod fruit {
                 Components::Collider,
                 Components::Spawner,
                 Components::Sound,
+                Components::Properties,
             ],
         );
 
         let mut fruit = man.view(id).unwrap();
         fruit.set_position(Vec3::new(pos.x, pos.y, 0.0));
+
+        id
+    }
+
+    /// put a fruit at x,y
+    /// -1 means unlimited respawns
+    /// pos is the center of the bounds
+    /// dim is the dimension around the bounds
+    /// for use with room api
+    pub fn bounded(man: &mut EntityManager, pos: Vec2, dim: Vec2, respawns: i32) -> EntityId {
+        let id = self::put_at(man, pos);
+
+        let fruit = man.view(id).unwrap();
+        fruit.new_property("respawns", respawns);
+        fruit.new_property("bound.pos", pos);
+        fruit.new_property("bound.dim", dim);
 
         id
     }
@@ -393,12 +410,31 @@ pub mod fruit {
         });
     }
 
-    pub fn respawn(entity: &mut EntityView) {
-        entity.request_spawn(Box::new(|man| {
-            new(man);
+    pub fn respawn(fruit: &mut EntityView) {
+        fruit.kill();
+
+        let pos = if fruit.has_property("respawns") {
+            let respawns = fruit.with_property("respawns", |&r: &i32| r);
+            if respawns == 0 {
+                return;
+            } else if respawns > 0 {
+                fruit.with_mut_property("respawns", |r: &mut i32| *r -= 1);
+            }
+
+            let pos = fruit.with_property("bound.pos", |&b: &Vec2| b);
+            let dim = fruit.with_property("bound.dim", |&d: &Vec2| d);
+            let mut rng = thread_rng();
+            let x = rng.gen_range(0.0..dim.x).floor();
+            let y = rng.gen_range(0.0..dim.y).floor();
+            pos - 0.5 * Vec2::new(x, y)
+        } else {
+            Vec2::default()
+        };
+
+        fruit.request_spawn(Box::new(move |man| {
+            self::put_at(man, pos);
         }));
-        entity.get_sound().play(Sounds::Eat);
-        entity.kill();
+        fruit.get_sound().play(Sounds::Eat);
     }
 }
 
@@ -557,6 +593,35 @@ pub mod swoop {
         let scale = this.get_scale().x;
         let direction = this.get_direction();
         renderer.push(render::swoop::Swoop::new(pos, scale, direction));
+    }
+}
+
+pub mod text {
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::Vec2, render::{text::{Text, TextNames}, RenderManager}};
+
+    pub fn new(man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
+        let id = man.spawn(Entities::Text, &[
+            Components::Position,
+            Components::Scale,
+            Components::Properties,
+        ]);
+        
+        let mut text = man.view(id).unwrap();
+        text.set_position((position, 0.0).into());
+        text.set_scale(scale.into());
+        text.new_property("name", name);
+
+        id
+    }
+
+    pub fn draw(this: EntityView, renderer: &mut RenderManager) {
+        let position = this.get_position().into();
+        let scale = this.get_scale().x;
+        let name = this.with_property("name", |n: &TextNames| *n);
+
+        let text = Text::place_at(name, position, scale);
+
+        renderer.push(text);
     }
 }
 

@@ -240,19 +240,23 @@ impl<'a> RenderManager<'a> {
     pub fn draw(&mut self) {
         // render the scene first
         // for transparency to work properly
-        // render back to front
+        // first render all opaque objects
+        // then render translucents back to front
         self.framebuffer.with(|_| {
             FrameBuffer::clear();
 
-            self.renderers.get_mut(&RenderType::Text).map(|r| r.draw());
             self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
-            self.renderers
-                .get_mut(&RenderType::Shield)
-                .map(|r| r.draw());
+
+
+            self.renderers.get_mut(&RenderType::Text).map(|r| r.draw());
             self.renderers.get_mut(&RenderType::Swoop).map(|r| r.draw());
             self.renderers
                 .get_mut(&RenderType::Fireball)
                 .map(|r| r.draw());
+            self.renderers
+                .get_mut(&RenderType::Shield)
+                .map(|r| r.draw());
+
         });
 
         // render the texture onto the monitor

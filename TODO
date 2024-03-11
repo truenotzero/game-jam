@@ -11,6 +11,13 @@ Content:
         - [ ] Fireball attack (basic)
         - [ ] Fireball attack (upgrade)
 - [x] CRT shader
+- [x] Text renderer
+- [ ] Glitch text renderer
+- [ ] Tutorial
+    - [x] Movement
+    - [x] Fruit
+    - [ ] Attacks
+    - [ ] Goal
 
 Fixes:
 ======
