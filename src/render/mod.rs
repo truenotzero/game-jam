@@ -1,8 +1,14 @@
 use core::slice;
-use std::{collections::HashMap, mem::size_of_val, time::{Duration, Instant}};
+use std::{
+    collections::HashMap,
+    mem::size_of_val,
+    time::{Duration, Instant},
+};
 
 use crate::{
-    gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao}, math::{ease, Vec3}, resources
+    gl::{self, call, ArrayBuffer, DrawContext, FrameBuffer, Shader, Uniform, Vao},
+    math::{ease, Vec3},
+    resources,
 };
 
 use self::{
@@ -10,12 +16,14 @@ use self::{
     instanced::{InstancedShapeManager, Tile},
     shield::{Shield, ShieldManager},
     swoop::{Swoop, SwoopManager},
+    text::{Text, TextManager},
 };
 
 pub mod fireball;
 pub mod instanced;
 pub mod shield;
 pub mod swoop;
+pub mod text;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum RenderType {
@@ -23,6 +31,7 @@ enum RenderType {
     Fireball,
     Shield,
     Swoop,
+    Text,
 }
 
 pub enum Element {
@@ -30,6 +39,7 @@ pub enum Element {
     Fireball(Fireball),
     Shield(Shield),
     Swoop(Swoop),
+    Text(Text),
 }
 
 impl From<Tile> for Element {
@@ -56,11 +66,18 @@ impl From<Swoop> for Element {
     }
 }
 
+impl From<Text> for Element {
+    fn from(value: Text) -> Self {
+        Self::Text(value)
+    }
+}
+
 pub enum Renderer<'a> {
     Tile(InstancedShapeManager<'a>),
     Fireball(FireballManager<'a>),
     Shield(ShieldManager<'a>),
     Swoop(SwoopManager<'a>),
+    Text(TextManager<'a>),
 }
 
 impl<'a> From<InstancedShapeManager<'a>> for Renderer<'a> {
@@ -87,6 +104,12 @@ impl<'a> From<SwoopManager<'a>> for Renderer<'a> {
     }
 }
 
+impl<'a> From<TextManager<'a>> for Renderer<'a> {
+    fn from(value: TextManager<'a>) -> Self {
+        Self::Text(value)
+    }
+}
+
 impl<'a> Renderer<'a> {
     fn render_type(&self) -> RenderType {
         match self {
@@ -94,6 +117,7 @@ impl<'a> Renderer<'a> {
             Renderer::Fireball(_) => RenderType::Fireball,
             Renderer::Shield(_) => RenderType::Shield,
             Renderer::Swoop(_) => RenderType::Swoop,
+            Renderer::Text(_) => RenderType::Text,
         }
     }
 
@@ -120,6 +144,11 @@ impl<'a> Renderer<'a> {
                     swoop.push(s)
                 }
             }
+            Renderer::Text(text) => {
+                if let Element::Text(t) = element {
+                    text.push(t)
+                }
+            }
         }
     }
 
@@ -129,6 +158,7 @@ impl<'a> Renderer<'a> {
             Renderer::Fireball(f) => f.draw(),
             Renderer::Shield(s) => s.draw(),
             Renderer::Swoop(s) => s.draw(),
+            Renderer::Text(t) => t.draw(),
         }
     }
 }
@@ -200,6 +230,10 @@ impl<'a> RenderManager<'a> {
                 .renderers
                 .get_mut(&RenderType::Swoop)
                 .map(|r| r.push(swoop)),
+            Element::Text(text) => self
+                .renderers
+                .get_mut(&RenderType::Text)
+                .map(|r| r.push(text)),
         };
     }
 
@@ -210,6 +244,7 @@ impl<'a> RenderManager<'a> {
         self.framebuffer.with(|_| {
             FrameBuffer::clear();
 
+            self.renderers.get_mut(&RenderType::Text).map(|r| r.draw());
             self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
             self.renderers
                 .get_mut(&RenderType::Shield)

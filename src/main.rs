@@ -18,6 +18,7 @@ use render::fireball::FireballManager;
 use render::instanced::InstancedShapeManager;
 use render::shield::ShieldManager;
 use render::swoop::SwoopManager;
+use render::text::TextManager;
 use render::RenderManager;
 use sound::{SoundManager, Sounds};
 use world::Room;
@@ -95,17 +96,17 @@ impl<'a> Game<'a> {
 
         // crt startup sequence
         sound.play(Sounds::CrtClick);
-        sleep(Duration::from_millis(1750));
-        sound.play(Sounds::CrtBuzz);
         sleep(Duration::from_millis(1250));
+        sound.play(Sounds::CrtBuzz);
+        sleep(Duration::from_millis(1500));
         sound.play(Sounds::CrtOn);
 
         let mut renderer = RenderManager::new(ctx);
         renderer.add_renderer(tile_renderer);
         renderer.add_renderer(fireball_renderer);
-
         renderer.add_renderer(ShieldManager::new(ctx, 512));
         renderer.add_renderer(SwoopManager::new(ctx, 16));
+        renderer.add_renderer(TextManager::new(ctx, 16));
 
         Self {
             pan_to_hall_trigger: None,
@@ -283,7 +284,7 @@ impl Window {
         window.set_resizable(false);
         window.set_key_polling(true);
         window.set_cursor_pos_polling(true);
-        let favicon = image::load_from_memory(resources::ICON).unwrap();
+        let favicon = image::load_from_memory(resources::textures::ICON).unwrap();
         window.set_icon(vec![favicon.into()]);
 
         // center the window

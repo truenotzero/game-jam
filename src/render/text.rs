@@ -3,13 +3,11 @@ use std::mem::{offset_of, size_of};
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Mat4, Vec2, Vec3, Vec4},
-    resources,
+    math::{Mat4, Vec2}, resources,
 };
 
 use super::VaoHelper;
 
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct Vertex {
     pos: Vec2,
@@ -19,12 +17,12 @@ struct Vertex {
 as_bytes!(Vertex);
 
 #[derive(Debug)]
-pub struct Swoop {
+pub struct Text {
     vertices: [Vertex; 6],
 }
 
-impl Default for Swoop {
-    fn default() -> Swoop {
+impl Default for Text {
+    fn default() -> Text {
         let corners = [
             Vertex {
                 pos: Vec2::new(-0.5, 0.5),
@@ -52,10 +50,9 @@ impl Default for Swoop {
     }
 }
 
-impl Swoop {
+impl Text {
     pub fn new<D: Into<Vec2>>(pos: Vec2, scale: f32, direction: D) -> Self {
         Self::default()
-            .transform(Mat4::rotate(Into::<Vec2>::into(direction).angle()))
             .transform(Mat4::scale(scale.into()))
             .transform(Mat4::translate((pos, 0.0).into()))
     }
@@ -69,20 +66,20 @@ impl Swoop {
     }
 }
 
-pub struct SwoopManager<'a> {
+pub struct TextManager<'a> {
     vao: Vao<'a>,
     vbo: ArrayBuffer<'a>,
     shader: Shader<'a>,
 
-    num_swoops: usize,
-    max_swoops: usize,
+    num_texts: usize,
+    max_texts: usize,
 }
 
-impl<'a> SwoopManager<'a> {
-    pub fn new(ctx: &'a DrawContext, max_swoops: usize) -> Self {
-        let max_swoops = max_swoops * size_of::<Swoop>();
+impl<'a> TextManager<'a> {
+    pub fn new(ctx: &'a DrawContext, max_texts: usize) -> Self {
+        let max_texts = max_texts * size_of::<Text>();
         let vbo = ArrayBuffer::new(ctx);
-        vbo.reserve(max_swoops, gl::buffer_flags::DYNAMIC_STORAGE);
+        vbo.reserve(max_texts, gl::buffer_flags::DYNAMIC_STORAGE);
 
         let vao = VaoHelper::new(ctx)
             .bind_buffer(&vbo)
@@ -105,34 +102,31 @@ impl<'a> SwoopManager<'a> {
         Self {
             vao,
             vbo,
-            shader: Shader::from_resource(ctx, resources::shaders::SWOOP)
-                .expect("bad swoop shader"),
+            shader: Shader::from_resource(ctx, resources::shaders::TEXT)
+                .expect("bad text shader"),
 
-            num_swoops: 0,
-            max_swoops,
+            num_texts: 0,
+            max_texts,
         }
     }
 
-    pub fn push(&mut self, swoop: Swoop) {
-        for v in swoop.vertices {
-            if self.num_swoops == self.max_swoops {
-                panic!("max swoops")
+    pub fn push(&mut self, text: Text) {
+        for v in text.vertices {
+            if self.num_texts == self.max_texts {
+                panic!("max texts")
             }
 
-            self.vbo
-                .update(self.num_swoops * size_of::<Vertex>(), unsafe {
-                    v.as_bytes()
-                });
+            self.vbo.update(self.num_texts * size_of::<Vertex>(), unsafe { v.as_bytes() });
 
-            self.num_swoops += 1;
+            self.num_texts += 1;
         }
     }
 
     pub fn draw(&mut self) {
         self.vao.apply();
         self.shader.apply();
-        gl::call!(DrawArrays(TRIANGLES, 0, self.num_swoops as _));
+        gl::call!(DrawArrays(TRIANGLES, 0, self.num_texts as _));
 
-        self.num_swoops = 0;
+        self.num_texts = 0;
     }
 }

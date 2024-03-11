@@ -17,7 +17,7 @@ fn create_gl_bindings() {
 fn set_icon_windows() {
     if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         WindowsResource::new()
-            .set_icon("res/thumbnail.ico")
+            .set_icon("res/textures/thumbnail.ico")
             .compile()
             .unwrap();
     }

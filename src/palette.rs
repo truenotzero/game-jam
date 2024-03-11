@@ -12,6 +12,8 @@ pub enum PaletteKey {
 
 #[derive(Clone, Copy)]
 pub struct Palette {
+    pub black: Vec3,
+    pub white: Vec3,
     pub snake: Vec3,
     pub wall: Vec3,
     pub background: Vec3,
@@ -35,6 +37,8 @@ impl Palette {
             wall: self.wall.srgb_to_linear(),
             background: self.background.srgb_to_linear(),
             fruit: self.fruit.srgb_to_linear(),
+
+            ..self
         }
     }
 }
@@ -45,6 +49,8 @@ pub fn _aperture() -> Palette {
     let dark_blue = Vec3::rgb(0x51, 0x82, 0x9B);
     let orange = Vec3::rgb(0xF6, 0x99, 0x5C);
     Palette {
+        black: Vec3::rgb(1, 1, 1),
+        white: Vec3::new(1.0, 1.0, 1.0),
         snake: offwhite,
         wall: light_blue,
         background: dark_blue,
@@ -61,6 +67,8 @@ pub fn _bright_pastel() -> Palette {
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 
     Palette {
+        black: Vec3::rgb(1, 1, 1),
+        white: Vec3::new(1.0, 1.0, 1.0),
         snake: green,
         wall: indigo,
         background: lavender,
@@ -78,6 +86,8 @@ pub fn dark_pastel() -> Palette {
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 
     Palette {
+        black: Vec3::rgb(1, 1, 1),
+        white: Vec3::new(1.0, 1.0, 1.0),
         snake: light_blue,
         wall: indigo,
         background: dark_blue,
@@ -89,6 +99,8 @@ pub fn dark_pastel() -> Palette {
 
 pub fn crt() -> Palette {
     Palette {
+        black: Vec3::rgb(1, 1, 1),
+        white: Vec3::new(1.0, 1.0, 1.0),
         snake: Vec3::new(0.0, 1.0, 0.0),
         wall: Vec3::new(1.0, 1.0, 1.0),
         background: Vec3::rgb(2, 2, 2),

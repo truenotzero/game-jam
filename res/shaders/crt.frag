@@ -17,7 +17,7 @@ float vignette(vec2 uv) {
     return pow(b, 8.0); // control the vignette fade, higher = faster
 }
 
-void gridify(inout vec3 frag) {
+void add_scan_lines(inout vec3 frag) {
     vec2 res = RESOLUTION * uv;
     int x = int(res.x);
     int y = int(res.y);
@@ -43,6 +43,7 @@ void gridify(inout vec3 frag) {
 
 }
 
+// monitor-like warp
 vec2 warp(vec2 uv) {
     uv = 2.0 * uv - 1.0;
 
@@ -61,7 +62,7 @@ void main() {
     vec2 wuv = warp(uv);
     fragColor = texture(screen, wuv);
 
-    gridify(fragColor.rgb);
+    add_scan_lines(fragColor.rgb);
 
     float vig = 1.0 - vignette(uv);
     fragColor.rgb *= vig;

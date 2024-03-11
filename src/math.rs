@@ -1,5 +1,8 @@
 use core::fmt;
-use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
+use std::{
+    f32::consts::PI,
+    ops::{Add, Index, IndexMut, Mul, Neg, Sub},
+};
 
 use crate::common::{as_bytes, Error, Result};
 
@@ -8,8 +11,10 @@ fn f32_eq_tolerance(lhs: f32, rhs: f32, tolerance: f32) -> bool {
     -tolerance < delta && delta < tolerance
 }
 
+const EPSILON: f32 = 0.01;
+
 pub fn f32_eq(lhs: f32, rhs: f32) -> bool {
-    f32_eq_tolerance(lhs, rhs, 0.01)
+    f32_eq_tolerance(lhs, rhs, EPSILON)
 }
 
 // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
@@ -89,9 +94,8 @@ impl Vec2 {
     }
 
     pub fn angle(self) -> f32 {
-        // a.b = |a||b|cos(a)
-        let cos = Self::dot(self.normalize(), Self::UP);
-        cos.acos()
+        let s = self.normalize();
+        f32::atan2(s.y, s.x) - 0.5 * PI
     }
 }
 
@@ -622,7 +626,7 @@ impl Mul<Vec2> for Mat4 {
     type Output = Vec2;
 
     fn mul(self, rhs: Vec2) -> Self::Output {
-        let vec4 = Vec4::new(rhs.x, rhs.y, 0.0, 0.0);
+        let vec4 = Vec4::new(rhs.x, rhs.y, 0.0, 1.0);
         let intermediate = self * vec4;
         Vec2::new(intermediate.x, intermediate.y)
     }
@@ -754,7 +758,7 @@ pub mod ease {
 
         c3 * p * p * p - c1 * p * p
     }
-    
+
     pub fn in_expo(p: f32) -> f32 {
         (2.0f32).powf(10.0 * p - 10.0)
     }

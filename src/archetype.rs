@@ -166,20 +166,20 @@ pub mod snake {
         entity.set_body_length(len + 1);
     }
 
-    pub fn head_tick(dt: Duration, entity: &mut EntityView) {
-        if !entity.access_timer(|t| t.tick(dt)) {
+    pub fn head_tick(dt: Duration, snake: &mut EntityView) {
+        if !snake.access_timer(|t| t.tick(dt)) {
             return;
         }
 
-        entity.set_animation(Animation::Idle);
+        snake.set_animation(Animation::Idle);
 
-        let pos = entity.get_position();
-        let last_dir = entity.get_direction();
-        let len = entity.get_body_length();
-        let mouse = entity.get_mouse();
+        let pos = snake.get_position();
+        let last_dir = snake.get_direction();
+        let len = snake.get_body_length();
+        let mouse = snake.get_mouse();
 
         let dir = loop {
-            if let Some(k) = entity.get_key() {
+            if let Some(k) = snake.get_key() {
                 use glfw::Key as K;
                 let new_dir = match k {
                     K::W | K::Up => Direction::Up,
@@ -187,13 +187,11 @@ pub mod snake {
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
                     K::F => {
-                        entity.request_spawn(Box::new(move |man| {
-                            swoop::new(man);
-                        }));
+                        self::swoop(snake);
                         continue;
                     }
                     K::Space => {
-                        entity.request_spawn(Box::new(move |man| {
+                        snake.request_spawn(Box::new(move |man| {
                             fireball::new(
                                 man,
                                 palette::PaletteKey::Snake,
@@ -208,8 +206,8 @@ pub mod snake {
                 };
 
                 if new_dir != last_dir && new_dir != last_dir.reverse() {
-                    entity.set_direction(new_dir);
-                    entity.get_sound().play(Sounds::Move);
+                    snake.set_direction(new_dir);
+                    snake.get_sound().play(Sounds::Move);
                     break new_dir;
                 }
             }
@@ -218,13 +216,13 @@ pub mod snake {
         };
 
         if len > 0 {
-            entity.request_spawn(Box::new(move |man| {
+            snake.request_spawn(Box::new(move |man| {
                 body(man, pos, vec![dir, last_dir.reverse()], len);
             }));
         }
 
         let new_pos = pos + Vec3::from((dir.into(), 0.0));
-        entity.set_position(new_pos);
+        snake.set_position(new_pos);
     }
 
     fn draw_shield(
@@ -260,6 +258,20 @@ pub mod snake {
                 // renderer.push(fix);
             }
         }
+    }
+
+    pub fn swoop(snake: &mut EntityView) {
+        // the swoop should spawn ahead of the head
+        let snake_pos = snake.get_position();
+        let snake_dir = snake.get_direction();
+        let offset = 0.75;
+        let swoop_pos = snake_pos + offset * Vec3::from(snake_dir);
+
+        let speed = 2.5;
+        let scale = 1.0;
+        snake.request_spawn(Box::new(move |man| {
+            swoop::new(man, swoop_pos, snake_dir, speed, scale);
+        }));
     }
 
     pub fn draw(mut entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
@@ -505,7 +517,13 @@ pub mod swoop {
         sound::Sounds,
     };
 
-    pub fn new(man: &mut EntityManager) -> EntityId {
+    pub fn new(
+        man: &mut EntityManager,
+        spawn_pos: Vec3,
+        direction: Direction,
+        speed: f32,
+        scale: f32,
+    ) -> EntityId {
         let id = man.spawn(
             Entities::Swoop,
             &[
@@ -517,13 +535,8 @@ pub mod swoop {
             ],
         );
 
-        let position = Default::default();
-        let direction = Direction::Up;
-        let speed = 2.5;
-        let scale = 1.0;
-
         let mut swoop = man.view(id).unwrap();
-        swoop.set_position(position);
+        swoop.set_position(spawn_pos);
         swoop.set_direction(direction);
         swoop.set_speed(speed);
         swoop.set_scale((scale).into());

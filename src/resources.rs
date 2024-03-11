@@ -14,8 +14,13 @@ pub type Resource = &'static [u8];
 pub type Sound = Resource;
 pub type Shader = &'static [Resource];
 
-// WINDOW ICON //
-pub const ICON: Resource = load!("favicon.ico");
+// TEXTURES //
+pub mod textures {
+    use super::Resource;
+
+    pub const ICON: Resource = load!("textures/favicon.ico");
+    pub const SNEK: Resource = load!("textures/snek.png");
+}
 
 // SOUNDS //
 pub mod sounds {
@@ -58,4 +63,6 @@ pub mod shaders {
     pub const CRT: Shader = &[load!("shaders/crt.vert"), load!("shaders/crt.frag")];
 
     pub const SWOOP: Shader = &[load!("shaders/swoop.vert"), load!("shaders/swoop.frag")];
+
+    pub const TEXT: Shader = &[load!("shaders/text.vert"), load!("shaders/text.frag")];
 }

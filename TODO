@@ -3,12 +3,18 @@ Content:
 - Enemies:
     - [ ] Static enemy (turret)
     - [ ] Mobile enemy
-- [ ] Slash attack
 - [ ] Powerup system
+    - [x] Slash animation
+        - [ ] Slash attack (basic)
+        - [ ] Slash attack (upgrade)
+    - [x] Fireball animation
+        - [ ] Fireball attack (basic)
+        - [ ] Fireball attack (upgrade)
 - [x] CRT shader
 
 Fixes:
 ======
+- [ ] Arbitrary sized triggers
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
 - [ ] Forcefield overlapping
