@@ -39,8 +39,7 @@ void add_scan_lines(inout vec3 frag) {
 
     if ((iTime / 32 + y) % 2 == 0) {
         frag *= 1.05;
-    }
-
+    } 
 }
 
 // monitor-like warp
@@ -61,6 +60,8 @@ vec2 warp(vec2 uv) {
 void main() {
     vec2 wuv = warp(uv);
     fragColor = texture(screen, wuv);
+    fragColor.rgb = pow(fragColor.rgb, vec3(1.23));
+
 
     add_scan_lines(fragColor.rgb);
 

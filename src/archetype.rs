@@ -606,7 +606,6 @@ pub mod text {
     pub fn new(man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
         let id = man.spawn(Entities::Text, &[
             Components::Position,
-            Components::Scale,
             Components::Timer,
 
             Components::Properties,
@@ -614,33 +613,31 @@ pub mod text {
         
         let mut text = man.view(id).unwrap();
         text.set_position((position, 0.0).into());
-        text.set_scale(scale.into());
         text.access_timer(|t| t.set_threshold(Duration::from_millis(self::ANIMATION_TICK)));
         text.new_property("name", name);
         text.new_property("frame", 0usize);
+        text.new_property("scale", scale);
 
         id
     }
     
     // target is 1 glitch every 1.5 seconds (=1500ms)
-    pub const AVERAGE_GLITCH_INTERVAL: u32 = 1500;
+    pub const AVERAGE_GLITCH_INTERVAL: u32 = 5000;
 
     pub fn tick(dt: Duration, this: &mut EntityView) {
         let tick = this.access_timer(|t| t.tick(dt));
 
-
         let name = this.with_property("name", |&n: &TextNames| n);
         let frame = this.with_property("frame", |&f: &usize| f);
         if tick && frame > 0 {
-            // if animation is ongoing advance frame
-            let max_frames = name.frames();
-            let next_frame = (frame + 1) % max_frames;
-            this.with_mut_property("frame", |f: &mut usize| *f = next_frame);
+            // if animation is ongoing reset it
+            this.with_mut_property("frame", |f: &mut usize| *f = 0);
         } else if tick && name.frames() > 1 {
             // if not animating, check if should animate
             let mut rng = thread_rng();
             if rng.gen_ratio(self::ANIMATION_TICK as _, self::AVERAGE_GLITCH_INTERVAL) {
-                this.with_mut_property("frame", |f: &mut usize| *f = 1);
+                let next_frame = rng.gen_range(1..name.frames());
+                this.with_mut_property("frame", |f: &mut usize| *f = next_frame);
             }
         }
 
@@ -648,19 +645,19 @@ pub mod text {
 
     pub fn draw(this: EntityView, renderer: &mut RenderManager) {
         let position = this.get_position().into();
-        let scale = this.get_scale().x;
         let name = this.with_property("name", |n: &TextNames| *n);
-
 
         let max_frames = name.frames();
         let frame = this.with_property("frame", |&f: &usize| f);
-        let frame = if frame > 0 && max_frames > 1 {
-            let mut rng = thread_rng();
-            rng.gen_range(1..max_frames)
-        } else {
-            frame
-        };
-        let text = Text::place_at(name, position, scale, frame);
+        // let frame = if frame > 0 && max_frames > 1 {
+        //     let mut rng = thread_rng();
+        //     rng.gen_range(1..max_frames)
+        // } else {
+        //     frame
+        // };
+
+        let scale = this.with_property("scale", |&s: &f32| s);
+        let text = Text::place_at(name, position, name.dimensions(), scale, frame);
 
         renderer.push(text);
     }

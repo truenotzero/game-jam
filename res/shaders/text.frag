@@ -1,8 +1,8 @@
 #version 450 core
 
 #define SCALE 1.0 / 1.0
-#define LETTER_HEIGHT 10.0
-#define LINE_HEIGHT 14.0
+#define LINE_SEPARATOR_HEIGHT 10.0
+#define LETTER_SIZE 14.0
 
 layout (binding = 0) uniform sampler2D text;
 layout (location = 0) uniform float uCurrentFrame;
@@ -16,7 +16,7 @@ void main() {
     vec2 suv = uv;
     if (uTotalFrames > 1.0) {
         // adjust for the whitespace above
-        suv.y *= (LETTER_HEIGHT / LINE_HEIGHT);
+        suv.y *= (LINE_SEPARATOR_HEIGHT / LETTER_SIZE);
     }
 
     vec2 duv = vec2(0.0, uCurrentFrame);
@@ -25,6 +25,6 @@ void main() {
 
     vec4 foreground = texture(text, suv);
 
-    fragColor.rgb = vec3(1.0 - foreground.a);
+    fragColor.rgb = vec3(1.0 - pow(foreground.a, 0.25));
     fragColor.a = foreground.a;
 }

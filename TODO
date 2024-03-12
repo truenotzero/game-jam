@@ -12,7 +12,7 @@ Content:
         - [ ] Fireball attack (upgrade)
 - [x] CRT shader
 - [x] Text renderer
-- [ ] Glitch text renderer
+- [x] Glitch text renderer
 - [ ] Tutorial
     - [x] Movement
     - [x] Fruit

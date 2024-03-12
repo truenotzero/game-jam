@@ -279,7 +279,6 @@ impl Room {
     /// view the room while keeping a 1:1 aspect ratio
     pub fn view(&self) -> Mat4 {
         let dim = self.dimensions.x.max(self.dimensions.y);
-        Mat4::scale((0.33).into()) * 
         Mat4::screen(self.position, dim, dim)
     }
 
@@ -296,9 +295,32 @@ impl Room {
     }
 
     /// places text in room-space coordinates
-    pub fn text_at(&mut self, man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) {
+    pub fn text_at(&mut self, man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
         let txt = archetype::text::new(man, name, self.position + position, scale);
         self.parts.push(txt);
+        txt
+    }
+
+    pub fn text_after(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
+        let last = man.view(last_id)?;
+        let last_pos = Vec2::from(last.get_position());
+        let last_scale = last.with_property("scale", |&f: &f32| f);
+        let last_dim = last.with_property("name", |name: &TextNames| last_scale * name.dimensions());
+
+        let dim = last_scale * name.dimensions();
+        let position = Vec2::new(last_pos.x + 0.5 * (last_dim.x + dim.x), last_pos.y);
+        Some(Self::text_at(self, man, name, position, last_scale))
+    }
+
+    pub fn text_under(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
+        let last = man.view(last_id)?;
+        let last_pos = Vec2::from(last.get_position());
+        let last_scale = last.with_property("scale", |&f: &f32| f);
+        let last_dim = last.with_property("name", |name: &TextNames| last_scale * name.dimensions());
+
+        let dim = last_scale * name.dimensions();
+        let position = Vec2::new(last_pos.x, last_pos.y + 0.5 * (last_dim.y + dim.y));
+        Some(Self::text_at(self, man, name, position, last_scale))
     }
 
     /// generate a random position in the room (in world space coordinates)
@@ -318,15 +340,20 @@ impl Room {
 
     pub fn tut_controls(man: &mut EntityManager) -> Self {
         let mut ret = Self::empty(man, Vec2::new(0.0, 0.0), Direction::random(), Vec2::diagonal(20.0));
-        ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 7.0);
-        // ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 14.0);
-        ret.text_at(man, TextNames::SnekGlitch, Vec2::new(0.0, ret.dimensions.y / 5.0), 1.0 / 7.0);
+        let snek = ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 14.0);
+        ret.text_after(man, snek, TextNames::SnekGlitch);
+        ret.text_under(man, snek, TextNames::FruitGlitch);
+
+
+
+        ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
         ret
     }
 
     pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> Self {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
-        ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
+        let fruit = ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
+        ret.text_under(man, fruit, TextNames::FruitGlitch);
         archetype::fruit::bounded(man, ret.position, ret.dimensions, 3);
         ret
     }

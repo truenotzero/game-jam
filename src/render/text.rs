@@ -5,7 +5,7 @@ use rand::{thread_rng, Rng};
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, ArrayBuffer, DrawContext, Shader, Texture2D, Uniform, Vao},
-    math::{Mat4, Vec2}, resources::{self, Texture}, time::Threshold,
+    math::{Mat4, Vec2, Vec3}, resources::{self, Texture}, time::Threshold,
 };
 
 use super::VaoHelper;
@@ -62,12 +62,12 @@ impl TextNames {
         }
     }
 
-    fn dimension(self) -> Vec2 {
+    pub fn dimensions(self) -> Vec2 {
         match self {
             Self::Snek => Vec2::new(62.0, 14.0),
             Self::SnekGlitch => Vec2::new(14.0, 96.0),
             Self::Controls => Vec2::new(142.0, 38.0),
-            Self::Fruit => Vec2::new(206.0, 14.0),
+            Self::Fruit => Vec2::new(127.0, 14.0),
             Self::FruitGlitch => Vec2::new(142.0, 192.0),
 
             Self::_NumTexts => panic!(),
@@ -85,6 +85,10 @@ impl TextNames {
 }
 
 const VERTICES_PER_SHAPE: usize = 6;
+
+pub const LETTER_SIZE: f32 = 14.0;
+pub const LETTER_GAP_WIDTH: f32 = 2.0;
+pub const LINE_SEPARATOR_HEIGHT: f32 = 10.0;
 
 #[derive(Debug)]
 pub struct Text {
@@ -123,13 +127,21 @@ impl Text {
         }
     }
 
-    pub fn place_at(name: TextNames, position: Vec2, scale: f32, frame: usize) -> Self {
-        let frames = name.frames() as f32;
-        let frame_adjust = Mat4::scale(Vec2::new(1.0, 1.0 / frames));
+    pub fn place_at(name: TextNames, position: Vec2, dimensions: Vec2, scale: f32, frame: usize) -> Self {
+        let frames = name.frames();
+        let adjust = if frames > 1{
+            let frame_adjust = 1.0 / frames as f32;
+            let whitespace_adjust = LINE_SEPARATOR_HEIGHT / LETTER_SIZE;
+
+            Mat4::scale(Vec2::new(1.0, frame_adjust * whitespace_adjust))
+            * Mat4::translate(scale * Vec3::new(LETTER_GAP_WIDTH, -LINE_SEPARATOR_HEIGHT, 0.0))
+        } else {
+            Mat4::default()
+        };
 
         Self::new(name, frame)
-            .transform(Mat4::scale(scale * name.dimension()))
-            .transform(frame_adjust)
+            .transform(Mat4::scale(scale * dimensions))
+            .transform(adjust)
             .transform(Mat4::translate((position, 0.0).into()))
             
     }
@@ -198,8 +210,8 @@ impl<'a> TextManager<'a> {
             let image = image.flipv();
 
             let texture = Texture2D::new(ctx);
-            let width = text_name.dimension().x as _;
-            let height = text_name.dimension().y as _;
+            let width = text_name.dimensions().x as _;
+            let height = text_name.dimensions().y as _;
             texture.apply();
             // effectively clamp to a transparent background
             gl::call!(TexParameteri(texture.type_(), TEXTURE_WRAP_S, CLAMP_TO_BORDER as _));
