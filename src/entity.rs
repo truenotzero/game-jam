@@ -339,6 +339,10 @@ impl<'m> EntityView<'m> {
         self.storage_mut().new_property(self.id, name, value)
     }
 
+    pub fn remove_property(&self, name: &str) {
+        self.storage_mut().remove_property(self.id, name);
+    }
+
     pub fn has_property(&self, name: &str) -> bool {
         self.storage().get_property(self.id, name).is_some()
     }
@@ -579,6 +583,10 @@ impl Storages {
         self.properties
             .get_mut(&entity)
             .map(|p| p.insert(name, Rc::new(RefCell::new(value))));
+    }
+
+    pub fn remove_property(&mut self, entity: EntityId, name: &str) {
+        self.properties.get_mut(&entity).map(|p| p.remove(name));
     }
 
     pub fn get_property(&self, entity: EntityId, name: &str) -> Option<Property> {

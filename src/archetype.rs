@@ -65,7 +65,7 @@ pub mod background {
 }
 
 pub mod snake {
-    use std::{process::exit, thread::sleep, time::Duration};
+    use std::{process::exit, sync::mpsc::{self, Receiver, Sender}, thread::sleep, time::Duration};
 
     use crate::{
         archetype::{fireball, swoop},
@@ -108,6 +108,13 @@ pub mod snake {
         snake.new_property("shield", false);
 
         id
+    }
+
+    pub fn make_move_trigger(man: &mut EntityManager, id: EntityId) -> Receiver<()> {
+        let this = man.view(id).unwrap();
+        let (tx, rx) = mpsc::channel();
+        this.new_property("move_tx", tx);
+        rx
     }
 
     fn body(
@@ -208,6 +215,9 @@ pub mod snake {
                 if new_dir != last_dir && new_dir != last_dir.reverse() {
                     snake.set_direction(new_dir);
                     snake.get_sound().play(Sounds::Move);
+                    if snake.has_property("move_tx") {
+                        let _ = snake.with_property("move_tx", |t: &Sender<()>| t.send(()));
+                    }
                     break new_dir;
                 }
             }
@@ -349,6 +359,8 @@ pub mod snake {
 }
 
 pub mod fruit {
+    use std::sync::mpsc::{self, Receiver, Sender};
+
     use rand::{thread_rng, Rng};
 
     use crate::{
@@ -385,6 +397,20 @@ pub mod fruit {
         id
     }
 
+    pub fn make_eaten_trigger(man: &mut EntityManager, id: EntityId) -> Receiver<()> {
+        let this = man.view(id).unwrap();
+        let (tx, rx) = mpsc::channel();
+        this.new_property("eat_tx", tx);
+        rx
+    }
+
+    pub fn make_kill_trigger(man: &mut EntityManager, id: EntityId) -> Receiver<()> {
+        let this = man.view(id).unwrap();
+        let (tx, rx) = mpsc::channel();
+        this.new_property("kill_tx", tx);
+        rx
+    }
+
     /// put a fruit at x,y
     /// -1 means unlimited respawns
     /// pos is the center of the bounds
@@ -415,6 +441,9 @@ pub mod fruit {
             let respawns = fruit.with_property("respawns", |&r: &i32| r);
             if respawns == 0 {
                 fruit.kill();
+                if fruit.has_property("kill_tx") {
+                    let _ = fruit.with_property("kill_tx", |tx: &Sender<()>| tx.send(()));
+                }
                 return;
             } else {
                 fruit.with_mut_property("respawns", |r: &mut i32| *r -= 1);
@@ -431,7 +460,10 @@ pub mod fruit {
         };
 
         fruit.get_sound().play(Sounds::Eat);
-        println!("🍎 respawning at {pos:?}");
+        if fruit.has_property("eat_tx") {
+            let _ = fruit.with_property("eat_tx", |tx: &Sender<()>| tx.send(()));
+        }
+
         fruit.set_position((pos, 0.0).into());
     }
 }
@@ -595,18 +627,19 @@ pub mod swoop {
 }
 
 pub mod text {
-    use std::time::Duration;
+    use std::{sync::mpsc::Receiver, time::Duration};
 
     use rand::{thread_rng, Rng};
 
-    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::Vec2, render::{text::{Text, TextNames}, RenderManager}};
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::Vec2, render::{text::{Text, TextNames}, RenderManager}, sound::Sounds};
 
-    pub const ANIMATION_TICK: u64 = 100;
+    pub const ANIMATION_TICK: u64 = 150;
 
     pub fn new(man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
         let id = man.spawn(Entities::Text, &[
             Components::Position,
             Components::Timer,
+            Components::Spawner,
 
             Components::Properties,
         ]);
@@ -617,27 +650,63 @@ pub mod text {
         text.new_property("name", name);
         text.new_property("frame", 0usize);
         text.new_property("scale", scale);
+        text.new_property("glitching_enabled", false);
 
         id
     }
     
+    pub fn enable_glitching(man: &mut EntityManager, id: EntityId) {
+        let view = man.view(id).unwrap();
+        view.with_mut_property("glitching_enabled", |b: &mut bool| *b = true);
+    }
+
+    pub fn add_glitch_trigger(man: &mut EntityManager, id: EntityId, glitch_rx: Receiver<()>) {
+        let view = man.view(id).unwrap();
+        view.new_property("glitch_rx", glitch_rx);
+    }
+    
     // target is 1 glitch every 1.5 seconds (=1500ms)
-    pub const AVERAGE_GLITCH_INTERVAL: u32 = 5000;
+    pub const AVERAGE_GLITCH_INTERVAL: u32 = 2000;
+
+    fn glitch(this: &mut EntityView) {
+        let mut rng = thread_rng();
+        let name = this.with_property("name", |&n: &TextNames| n);
+        let next_frame = rng.gen_range(1..name.frames());
+        this.with_mut_property("frame", |f: &mut usize| *f = next_frame);
+        this.request_spawn(Box::new(|man| super::oneshot::play_sound(man, Sounds::glitch())));
+    }
 
     pub fn tick(dt: Duration, this: &mut EntityView) {
         let tick = this.access_timer(|t| t.tick(dt));
 
+        if this.has_property("glitch_rx") {
+            let rx = this.with_property("glitch_rx", |rx: &Receiver<()>| rx.try_recv());
+            if let Ok(_) = rx {
+                this.with_mut_property("glitching_enabled", |g: &mut bool| *g = true);
+                self::glitch(this);
+
+                this.remove_property("glitch_rx");
+                return;
+            }
+        }
+
         let name = this.with_property("name", |&n: &TextNames| n);
         let frame = this.with_property("frame", |&f: &usize| f);
-        if tick && frame > 0 {
+
+        if !tick { return; }
+        let glitching_enabled = this.with_property("glitching_enabled", |&b: &bool| b);
+        if !glitching_enabled { return; }
+
+        if frame > 0 {
             // if animation is ongoing reset it
             this.with_mut_property("frame", |f: &mut usize| *f = 0);
-        } else if tick && name.frames() > 1 {
-            // if not animating, check if should animate
+        }
+
+        if name.frames() > 1 {
             let mut rng = thread_rng();
+            // if not animating, check if should animate
             if rng.gen_ratio(self::ANIMATION_TICK as _, self::AVERAGE_GLITCH_INTERVAL) {
-                let next_frame = rng.gen_range(1..name.frames());
-                this.with_mut_property("frame", |f: &mut usize| *f = next_frame);
+                self::glitch(this);
             }
         }
 
@@ -647,15 +716,7 @@ pub mod text {
         let position = this.get_position().into();
         let name = this.with_property("name", |n: &TextNames| *n);
 
-        let max_frames = name.frames();
         let frame = this.with_property("frame", |&f: &usize| f);
-        // let frame = if frame > 0 && max_frames > 1 {
-        //     let mut rng = thread_rng();
-        //     rng.gen_range(1..max_frames)
-        // } else {
-        //     frame
-        // };
-
         let scale = this.with_property("scale", |&s: &f32| s);
         let text = Text::place_at(name, position, name.dimensions(), scale, frame);
 

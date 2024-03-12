@@ -13,5 +13,5 @@ out vec2 uv;
 
 void main() {
     uv = aUV;
-    gl_Position = uScreen * vec4(aPos, Z, 1.0);
+    gl_Position = uScreen * vec4(aPos + vec2(0.5), Z, 1.0);
 }

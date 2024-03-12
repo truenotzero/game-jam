@@ -4,7 +4,7 @@ use std::{os::windows::thread, sync::mpsc::{self, Receiver, Sender}};
 use rand::{thread_rng, Rng};
 
 use crate::{
-    archetype, entity::{Direction, Entities, EntityId, EntityManager, Position, Scale}, math::{Mat4, Vec2, Vec3, Vec4}, render::text::TextNames, sound::Sounds
+    archetype::{self, fruit, snake, text}, entity::{Direction, Entities, EntityId, EntityManager, Position, Scale}, math::{Mat4, Vec2, Vec3, Vec4}, render::text::TextNames, sound::Sounds
 };
 
 const BACKGROUND_DEPTH: f32 = 0.9;
@@ -309,7 +309,7 @@ impl Room {
 
         let dim = last_scale * name.dimensions();
         let position = Vec2::new(last_pos.x + 0.5 * (last_dim.x + dim.x), last_pos.y);
-        Some(Self::text_at(self, man, name, position, last_scale))
+        Some(Self::text_at(self, man, name, position - self.position, last_scale))
     }
 
     pub fn text_under(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
@@ -319,8 +319,10 @@ impl Room {
         let last_dim = last.with_property("name", |name: &TextNames| last_scale * name.dimensions());
 
         let dim = last_scale * name.dimensions();
-        let position = Vec2::new(last_pos.x, last_pos.y + 0.5 * (last_dim.y + dim.y));
-        Some(Self::text_at(self, man, name, position, last_scale))
+        let dim_y = dim.y / name.frames() as f32;
+        let position = Vec2::new(last_pos.x, last_pos.y + 0.5 * (last_dim.y + dim_y));
+        println!("putting text under at {position:?}");
+        Some(Self::text_at(self, man, name, position - self.position, last_scale))
     }
 
     /// generate a random position in the room (in world space coordinates)
@@ -340,23 +342,29 @@ impl Room {
 
     pub fn tut_controls(man: &mut EntityManager) -> Self {
         let mut ret = Self::empty(man, Vec2::new(0.0, 0.0), Direction::random(), Vec2::diagonal(20.0));
-        let snek = ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 14.0);
-        ret.text_after(man, snek, TextNames::SnekGlitch);
-        ret.text_under(man, snek, TextNames::FruitGlitch);
 
-
+        let snek = snake::new(man);
+        let snek_move_rx = snake::make_move_trigger(man, snek);
 
         ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
+        let snek_txt = ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 14.0);
+        let snek_glitch_txt = ret.text_after(man, snek_txt, TextNames::SnekGlitch).unwrap();
+        text::add_glitch_trigger(man, snek_glitch_txt, snek_move_rx);
         ret
     }
 
     pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> Self {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
-        let fruit = ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
-        ret.text_under(man, fruit, TextNames::FruitGlitch);
-        archetype::fruit::bounded(man, ret.position, ret.dimensions, 3);
+        let fruit_txt = ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
+        let fruit_glitch_txt = ret.text_under(man, fruit_txt, TextNames::FruitGlitch).unwrap();
+        let fruit_id = fruit::bounded(man, ret.position, ret.dimensions, 3);
+        let on_eat = fruit::make_eaten_trigger(man, fruit_id);
+        text::add_glitch_trigger(man, fruit_glitch_txt, on_eat);
+
         ret
     }
+
+    
 
     pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
         let next_pos = last.offset_from(last.hall_direction, last.dimensions);

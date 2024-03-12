@@ -3,6 +3,7 @@ use std::{
     thread,
 };
 
+use rand::{thread_rng, Rng};
 use soloud::{AudioExt, LoadExt, Soloud, Wav};
 
 use crate::{
@@ -24,6 +25,12 @@ pub enum Sounds {
     CrtOn,
     CrtClick,
     CrtBuzz,
+    Glitch0,
+    Glitch1,
+    Glitch2,
+    Glitch3,
+    Glitch4,
+    Glitch5,
 
     _NumSounds,
 }
@@ -43,9 +50,23 @@ impl Sounds {
             Self::CrtOn => CRT_ON,
             Self::CrtClick => CRT_CLICK,
             Self::CrtBuzz => CRT_BUZZ,
+            Self::Glitch0 => GLITCH_0,
+            Self::Glitch1 => GLITCH_1,
+            Self::Glitch2 => GLITCH_2,
+            Self::Glitch3 => GLITCH_3,
+            Self::Glitch4 => GLITCH_4,
+            Self::Glitch5 => GLITCH_5,
 
             Self::_NumSounds => panic!(),
         }
+    }
+
+    pub fn glitch() -> Self {
+        let mut rng = thread_rng();
+        let first_glitch = Self::Glitch0;
+        let last_glitch = Self::Glitch5;
+        let glitch = rng.gen_range(first_glitch as u8 ..= last_glitch as u8);
+        Self::try_from(glitch).unwrap()
     }
 }
 
@@ -66,6 +87,12 @@ impl TryFrom<u8> for Sounds {
             8 => S::CrtOn,
             9 => S::CrtClick,
             10 => S::CrtBuzz,
+            11 => S::Glitch0,
+            12 => S::Glitch1,
+            13 => S::Glitch2,
+            14 => S::Glitch3,
+            15 => S::Glitch4,
+            16 => S::Glitch5,
 
             _ => Err(Error::InvalidSoundId)?,
         })

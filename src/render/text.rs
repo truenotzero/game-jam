@@ -67,7 +67,7 @@ impl TextNames {
             Self::Snek => Vec2::new(62.0, 14.0),
             Self::SnekGlitch => Vec2::new(14.0, 96.0),
             Self::Controls => Vec2::new(142.0, 38.0),
-            Self::Fruit => Vec2::new(127.0, 14.0),
+            Self::Fruit => Vec2::new(110.0, 14.0),
             Self::FruitGlitch => Vec2::new(142.0, 192.0),
 
             Self::_NumTexts => panic!(),
@@ -134,16 +134,20 @@ impl Text {
             let whitespace_adjust = LINE_SEPARATOR_HEIGHT / LETTER_SIZE;
 
             Mat4::scale(Vec2::new(1.0, frame_adjust * whitespace_adjust))
-            * Mat4::translate(scale * Vec3::new(LETTER_GAP_WIDTH, -LINE_SEPARATOR_HEIGHT, 0.0))
+            * Mat4::translate(Vec3::new(LETTER_GAP_WIDTH, -LINE_SEPARATOR_HEIGHT, 0.0))
+            // Mat4::default()
         } else {
             Mat4::default()
         };
 
-        Self::new(name, frame)
-            .transform(Mat4::scale(scale * dimensions))
+        let out = Self::new(name, frame)
+            .transform(Mat4::scale(dimensions))
             .transform(adjust)
+            .transform(Mat4::scale(scale.into()))
             .transform(Mat4::translate((position, 0.0).into()))
-            
+        ;
+    
+        out        
     }
 
     fn transform(mut self, t: Mat4) -> Self {

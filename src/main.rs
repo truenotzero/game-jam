@@ -82,7 +82,6 @@ impl<'a> Game<'a> {
         let (mouse_tx, mouse_rx) = mpsc::channel();
         let sound = SoundManager::new();
         let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.player());
-        archetype::snake::new(&mut man);
         let room = world::Room::tut_controls(&mut man);
         let starting_view = room.view();
 
@@ -94,13 +93,11 @@ impl<'a> Game<'a> {
         );
 
         // crt startup sequence
-        /*
         sound.play(Sounds::CrtClick);
         sleep(Duration::from_millis(1250));
         sound.play(Sounds::CrtBuzz);
         sleep(Duration::from_millis(1500));
         sound.play(Sounds::CrtOn);
-        */
 
         let mut renderer = RenderManager::new(ctx);
         renderer.add_renderer(tile_renderer);
@@ -210,7 +207,8 @@ impl<'a> Game<'a> {
 
         match key {
             Key::G => {
-                self.lerping = true;
+                let view = self.current_view;
+                self.move_camera(Mat4::scale(0.25.into()) * view);
             }
             Key::B => {
                 let (hall, room) = self.current_room.open_hallway(&mut self.man);
@@ -297,8 +295,8 @@ impl Window {
 
         // set up opengl stuff here
         // backface culling & apparently I can't specify vertices
-        //gl::call!(FrontFace(CW));
-        //gl::call!(Enable(CULL_FACE));
+        gl::call!(FrontFace(CW));
+        gl::call!(Enable(CULL_FACE));
         // enable depth buffer
         gl::call!(Enable(DEPTH_TEST));
         // enable blending

@@ -47,6 +47,12 @@ pub mod sounds {
     pub const CRT_ON: Sound = load!("sounds/crt-on.wav");
     pub const CRT_CLICK: Sound = load!("sounds/crt-click.wav");
     pub const CRT_BUZZ: Sound = load!("sounds/crt-buzz.wav");
+    pub const GLITCH_0: Sound = load!("sounds/glitch-0.wav");
+    pub const GLITCH_1: Sound = load!("sounds/glitch-1.wav");
+    pub const GLITCH_2: Sound = load!("sounds/glitch-2.wav");
+    pub const GLITCH_3: Sound = load!("sounds/glitch-3.wav");
+    pub const GLITCH_4: Sound = load!("sounds/glitch-4.wav");
+    pub const GLITCH_5: Sound = load!("sounds/glitch-5.wav");
 }
 
 // SHADERS //

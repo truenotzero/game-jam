@@ -25,6 +25,6 @@ void main() {
 
     vec4 foreground = texture(text, suv);
 
-    fragColor.rgb = vec3(1.0 - pow(foreground.a, 0.25));
+    fragColor.rgb = vec3(1.0 - pow(foreground.a, 0.95));
     fragColor.a = foreground.a;
 }

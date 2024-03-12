@@ -25,3 +25,8 @@ Fixes:
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
 - [ ] Forcefield overlapping
+
+
+After the jam:
+==============
+- [ ] Experiment with WASM+GLES2.0 port
