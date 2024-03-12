@@ -651,7 +651,15 @@ pub mod text {
         let scale = this.get_scale().x;
         let name = this.with_property("name", |n: &TextNames| *n);
 
+
+        let max_frames = name.frames();
         let frame = this.with_property("frame", |&f: &usize| f);
+        let frame = if frame > 0 && max_frames > 1 {
+            let mut rng = thread_rng();
+            rng.gen_range(1..max_frames)
+        } else {
+            frame
+        };
         let text = Text::place_at(name, position, scale, frame);
 
         renderer.push(text);
