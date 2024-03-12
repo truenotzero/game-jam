@@ -28,6 +28,10 @@ impl Threshold {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.acc = Duration::ZERO;
+    }
+
     pub fn progress(&self) -> f32 {
         self.acc.as_secs_f32() / self.threshold.as_secs_f32()
     }

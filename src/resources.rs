@@ -29,6 +29,11 @@ pub mod text {
     pub const CONTROLS: Texture = load!("textures/text/controls.png");
     pub const FRUIT: Texture = load!("textures/text/fruit.png");
     pub const FRUIT_GLITCH: Texture = load!("textures/text/fruit-glitch.png");
+    pub const FRUIT_GLITCH_VARIANT: Texture = load!("textures/text/fruit-glitch-variant.png");
+    pub const ATTACK: Texture = load!("textures/text/attack.png");
+    pub const ATTACK_GLITCH: Texture = load!("textures/text/attack-glitch.png");
+    pub const EMPOWER: Texture = load!("textures/text/empower.png");
+    pub const EMPOWER_GLITCH: Texture = load!("textures/text/empower-glitch.png");
 }
 }
 

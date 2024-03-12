@@ -16,7 +16,8 @@ Content:
 - [ ] Tutorial
     - [x] Movement
     - [x] Fruit
-    - [ ] Attacks
+    - [x] Attacks
+    - [ ] Enemies
     - [ ] Goal
 
 Fixes:
@@ -25,6 +26,7 @@ Fixes:
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
 - [ ] Forcefield overlapping
+- [ ] Mouse-following projectiles
 
 
 After the jam:

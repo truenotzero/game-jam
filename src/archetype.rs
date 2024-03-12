@@ -724,6 +724,27 @@ pub mod text {
     }
 }
 
+pub mod logic {
+    use std::time::Duration;
+
+    use crate::entity::{Components, Entities, EntityId, EntityManager, EntityView};
+
+    pub fn new(man: &mut EntityManager, on_tick: Box<dyn FnMut(Duration)>) -> EntityId {
+        let id = man.spawn(Entities::Logic, &[
+            Components::Properties,
+        ]);
+        
+        let this = man.view(id).unwrap();
+        this.new_property("on_tick", on_tick);
+
+        id
+    }
+
+    pub fn tick(dt: Duration, this: &mut EntityView) {
+        this.with_mut_property::<Box<dyn FnMut(Duration)>, _>("on_tick", |f| f(dt));
+    }
+}
+
 pub mod oneshot {
     use crate::{
         entity::{Components, Entities, EntityManager},

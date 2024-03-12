@@ -1,6 +1,6 @@
 //#![windows_subsystem = "windows"]
 
-use std::mem;
+use std::mem::{self, swap};
 
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -48,10 +48,9 @@ const SCALE_FACTOR: f32 = 0.85;
 struct Game<'a> {
     pan_to_hall_trigger: Option<Receiver<()>>,
     pan_to_room_trigger: Option<Receiver<()>>,
+    open_hall_trigger: Receiver<()>,
 
     // mouse position in world coordinates
-    mouse_x: f32,
-    mouse_y: f32,
     view_width: f32,
     view_height: f32,
 
@@ -61,7 +60,8 @@ struct Game<'a> {
     current_view: Mat4,
 
     last_room: Option<world::Room>,
-    current_room: world::Room,
+    room: world::Room,
+    room_ctr: usize,
     man: EntityManager,
     keystroke_tx: Sender<Key>,
     mouse_tx: Sender<Vec2>,
@@ -82,7 +82,7 @@ impl<'a> Game<'a> {
         let (mouse_tx, mouse_rx) = mpsc::channel();
         let sound = SoundManager::new();
         let mut man = EntityManager::new(keystroke_rx, mouse_rx, sound.player());
-        let room = world::Room::tut_controls(&mut man);
+        let (room, open_hall_trigger) = world::Room::tut_controls(&mut man);
         let starting_view = room.view();
 
         let common_uniforms = UniformBuffer::new(ctx);
@@ -109,9 +109,8 @@ impl<'a> Game<'a> {
         Self {
             pan_to_hall_trigger: None,
             pan_to_room_trigger: None,
+            open_hall_trigger,
 
-            mouse_x: 0.0,
-            mouse_y: 0.0,
             view_width,
             view_height,
 
@@ -121,7 +120,8 @@ impl<'a> Game<'a> {
             next_view: normal,
 
             last_room: None,
-            current_room: room,
+            room,
+            room_ctr: 0,
             man,
             keystroke_tx,
             mouse_tx,
@@ -158,6 +158,11 @@ impl<'a> Game<'a> {
                 self.lerping = false;
                 self.accum = Duration::ZERO;
                 mem::swap(&mut self.current_view, &mut self.next_view);
+
+                // now that the last room is out of view get rid of it
+                if let Some(mut room) = self.last_room.take() {
+                    room.destroy(&mut self.man);
+                }
             }
         }
 
@@ -171,17 +176,22 @@ impl<'a> Game<'a> {
             .unwrap_or_default()
         {
             // pan to hall
-            self.move_camera(self.current_room.view_hall());
+            self.move_camera(self.room.view_hall());
 
             // close hall entrance off
             //self.current_room.close_hall_entrance(&mut self.man);
 
             // prepare next room
-            if let Some(last) = &mut self.last_room {
-                last.destroy(&mut self.man);
-            }
+            // it's okay to reset open_hall_trigger here
+            // since if it must be that the hall is already open
+            let (mut next_room, next_trigger) = world::next_room(&mut self.room_ctr)(&mut self.man, &self.room);
+            self.open_hall_trigger = next_trigger;
+            next_room.take_last_hall(&mut self.room);
 
-            self.last_room = Some(Room::tut_fruit(&mut self.man, &self.current_room));
+            // swap rooms
+            swap(&mut next_room, &mut self.room);
+            self.last_room = Some(next_room);
+
         }
 
         // hall leave trigger
@@ -191,12 +201,15 @@ impl<'a> Game<'a> {
             .map(|rx| rx.try_recv().is_ok())
             .unwrap_or_default()
         {
-            // swap rooms
-            self.last_room
-                .as_mut()
-                .map(|last_room| std::mem::swap(&mut self.current_room, last_room));
             // pan to new room
-            self.move_camera(self.current_room.view());
+            self.move_camera(self.room.view());
+        }
+
+        // hall open trigger
+        if self.open_hall_trigger.try_recv().is_ok() {
+            let (hall, room) = self.room.open_hallway(&mut self.man);
+            self.pan_to_hall_trigger = Some(hall);
+            self.pan_to_room_trigger = Some(room);
         }
     }
 
@@ -211,7 +224,7 @@ impl<'a> Game<'a> {
                 self.move_camera(Mat4::scale(0.25.into()) * view);
             }
             Key::B => {
-                let (hall, room) = self.current_room.open_hallway(&mut self.man);
+                let (hall, room) = self.room.open_hallway(&mut self.man);
                 self.pan_to_hall_trigger = Some(hall);
                 self.pan_to_room_trigger = Some(room);
             }
@@ -221,23 +234,23 @@ impl<'a> Game<'a> {
         let _ = self.keystroke_tx.send(key);
     }
 
-    fn mouse_move(&mut self, x: f64, y: f64) {
+    fn mouse_move(&mut self, screen_x: f64, screen_y: f64) {
         // screen coords
         // normalized [0,1]
-        let x = x as f32 / self.view_width;
-        let y = y as f32 / self.view_height;
+        let nx = screen_x as f32 / self.view_width;
+        let ny = screen_y as f32 / self.view_height;
 
         // normalized [-1,1]
-        let x = 2.0 * x - 1.0;
-        let y = 2.0 * y - 1.0;
+        let ndc_x = 2.0 * nx - 1.0;
+        let ndc_y = 2.0 * ny - 1.0;
 
         // world coords
         let in_view = self.current_view.inverse();
-        let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(x, y, 0.0));
-        self.mouse_x = x;
-        self.mouse_y = -y;
+        let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(ndc_x, ndc_y, 0.0));
 
-        let _ = self.mouse_tx.send(Vec2::new(x, -y));
+        // 
+        let pos = Vec2::new(x, -y) + self.room.position();
+        let _ = self.mouse_tx.send(pos);
     }
 }
 

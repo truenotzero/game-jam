@@ -1,11 +1,10 @@
-use std::{collections::HashMap, hash::Hash, mem::{offset_of, size_of}, os::windows::thread, time::{Duration, Instant}};
+use std::{collections::HashMap, mem::{offset_of, size_of}};
 
-use rand::{thread_rng, Rng};
 
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, ArrayBuffer, DrawContext, Shader, Texture2D, Uniform, Vao},
-    math::{Mat4, Vec2, Vec3}, resources::{self, Texture}, time::Threshold,
+    math::{Mat4, Vec2, Vec3}, resources::{self, Texture},
 };
 
 use super::VaoHelper;
@@ -27,6 +26,11 @@ pub enum TextNames {
     Controls,
     Fruit,
     FruitGlitch,
+    FruitGlitchVariant,
+    Attack,
+    AttackGlitch,
+    Empower,
+    EmpowerGlitch,
 
     _NumTexts,
 }
@@ -42,6 +46,11 @@ impl TryFrom<u8> for TextNames {
             2 => T::Controls,
             3 => T::Fruit,
             4 => T::FruitGlitch,
+            5 => T::FruitGlitchVariant,
+            6 => T::Attack,
+            7 => T::AttackGlitch,
+            8 => T::Empower,
+            9 => T::EmpowerGlitch,
 
             _ => Err(Error::InvalidTextNameId)?,
         })
@@ -57,6 +66,11 @@ impl TextNames {
             Self::Controls => CONTROLS,
             Self::Fruit => FRUIT,
             Self::FruitGlitch => FRUIT_GLITCH,
+            Self::FruitGlitchVariant => FRUIT_GLITCH_VARIANT,
+            Self::Attack => ATTACK,
+            Self::AttackGlitch => ATTACK_GLITCH,
+            Self::Empower => EMPOWER,
+            Self::EmpowerGlitch => EMPOWER_GLITCH,
 
             TextNames::_NumTexts => panic!(),
         }
@@ -69,6 +83,11 @@ impl TextNames {
             Self::Controls => Vec2::new(142.0, 38.0),
             Self::Fruit => Vec2::new(110.0, 14.0),
             Self::FruitGlitch => Vec2::new(142.0, 192.0),
+            Self::FruitGlitchVariant => Vec2::new(142.0, 192.0),
+            Self::Attack => Vec2::new(238.0, 14.0),
+            Self::AttackGlitch => Vec2::new(174.0, 192.0),
+            Self::Empower => Vec2::new(174.0, 14.0),
+            Self::EmpowerGlitch => Vec2::new(206.0, 192.0),
 
             Self::_NumTexts => panic!(),
         }
@@ -78,6 +97,9 @@ impl TextNames {
         match self {
             Self::SnekGlitch => 4,
             Self::FruitGlitch => 8,
+            Self::FruitGlitchVariant => 8,
+            Self::AttackGlitch => 8,
+            Self::EmpowerGlitch => 8,
             Self::_NumTexts => panic!(),
             _ => 1,
         }

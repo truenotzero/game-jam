@@ -1,10 +1,10 @@
 use core::{arch, panic};
-use std::{os::windows::thread, sync::mpsc::{self, Receiver, Sender}};
+use std::{mem::swap, os::windows::thread, sync::mpsc::{self, Receiver, Sender}, time::Duration};
 
 use rand::{thread_rng, Rng};
 
 use crate::{
-    archetype::{self, fruit, snake, text}, entity::{Direction, Entities, EntityId, EntityManager, Position, Scale}, math::{Mat4, Vec2, Vec3, Vec4}, render::text::TextNames, sound::Sounds
+    archetype::{self, fruit, logic, snake, text}, entity::{Direction, Entities, EntityId, EntityManager, Position, Scale}, math::{Mat4, Vec2, Vec3, Vec4}, render::text::TextNames, sound::Sounds, time::Threshold
 };
 
 const BACKGROUND_DEPTH: f32 = 0.9;
@@ -17,14 +17,17 @@ pub enum _RoomType {
     Swarm,
 }
 
+type Hall = Box<Room>;
+
 pub struct Room {
     position: Vec2,
     dimensions: Scale,
     parts: Vec<EntityId>,
 
-    hall: Option<Box<Room>>,
+    last_hall: Option<Hall>,
+    hall: Option<Hall>,
     hall_direction: Direction,
-    width: f32,
+    hall_width: f32,
 }
 
 impl Room {
@@ -35,9 +38,11 @@ impl Room {
             position,
             dimensions,
             parts: Vec::new(),
-            hall_direction: Direction::default(),
+
+            last_hall: None,
             hall: None,
-            width: 0.0,
+            hall_direction: Direction::default(),
+            hall_width: 0.0,
         };
 
         // wall it off
@@ -62,6 +67,10 @@ impl Room {
 
         let d = Vec2::from(direction);
         pos + 0.5 * d * (dim + dimensions)
+    }
+
+    pub fn take_last_hall(&mut self, other: &mut Self) {
+        swap(&mut self.last_hall, &mut other.hall)
     }
 
     fn make_hall(
@@ -102,7 +111,7 @@ impl Room {
         let hall = Self::new(man, pos, dim);
         self.hall = Some(Box::new(hall));
         self.hall_direction = direction;
-        self.width = width;
+        self.hall_width = width;
     }
 
     /// breaks wall, optionally putting triggers in its place
@@ -144,6 +153,7 @@ impl Room {
         let mut triggers = Vec::new();
         for &id in &self.parts {
             if let Some(mut wall) = man.view(id) {
+                if wall.which() != Entities::Wall { continue; }
                 let pos = wall.get_position();
 
                 if xs <= pos.x && pos.x <= xe && ys <= pos.y && pos.y <= ye {
@@ -178,9 +188,9 @@ impl Room {
         let (tx_near, rx_near) = mpsc::channel();
         let (tx_far, rx_far) = mpsc::channel();
 
-        hall.break_wall(man, self.hall_direction, self.width, Some(tx_far.clone()));
-        hall.break_wall(man, self.hall_direction.reverse(), self.width, None);
-        self.break_wall(man, self.hall_direction, self.width, Some(tx_near.clone()));
+        hall.break_wall(man, self.hall_direction, self.hall_width, Some(tx_far.clone()));
+        hall.break_wall(man, self.hall_direction.reverse(), self.hall_width, None);
+        self.break_wall(man, self.hall_direction, self.hall_width, Some(tx_near.clone()));
 
         (rx_near, rx_far)
     }
@@ -288,20 +298,21 @@ impl Room {
             // let dim = hall.dimensions;
             // let dim = dim.x.max(dim.y);
             // Mat4::screen(hall.position, dim, dim)
-            hall.view()
+            Mat4::scale((1.10).into()) * hall.view()
         } else {
             panic!()
         }
     }
 
     /// places text in room-space coordinates
-    pub fn text_at(&mut self, man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
+    fn text_at(&mut self, man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
         let txt = archetype::text::new(man, name, self.position + position, scale);
         self.parts.push(txt);
         txt
     }
 
-    pub fn text_after(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
+    /// places text to the right of some other text
+    fn text_after(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
         let last = man.view(last_id)?;
         let last_pos = Vec2::from(last.get_position());
         let last_scale = last.with_property("scale", |&f: &f32| f);
@@ -312,7 +323,8 @@ impl Room {
         Some(Self::text_at(self, man, name, position - self.position, last_scale))
     }
 
-    pub fn text_under(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
+    /// places text under some other text
+    fn text_under(&mut self, man: &mut EntityManager, last_id: EntityId, name: TextNames) -> Option<EntityId> {
         let last = man.view(last_id)?;
         let last_pos = Vec2::from(last.get_position());
         let last_scale = last.with_property("scale", |&f: &f32| f);
@@ -333,14 +345,22 @@ impl Room {
         self.position + (x, y).into()
     }
 
+    pub fn add_logic(&mut self, man: &mut EntityManager, on_tick: impl FnMut(Duration) + 'static) {
+        let logic = logic::new(man, Box::new(on_tick));
+        self.parts.push(logic);
+    }
+    pub fn position(&self) -> Vec2 {
+        self.position
+    }
+    
     // Room types
     fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale) -> Self {
         let mut ret = Self::new(man, position, dimensions);
-        ret.make_hall(man, side, 6, 18);
+        ret.make_hall(man, side, 2, 28);
         ret
     }
 
-    pub fn tut_controls(man: &mut EntityManager) -> Self {
+    pub fn tut_controls(man: &mut EntityManager) -> (Self, Receiver<()>) {
         let mut ret = Self::empty(man, Vec2::new(0.0, 0.0), Direction::random(), Vec2::diagonal(20.0));
 
         let snek = snake::new(man);
@@ -349,22 +369,64 @@ impl Room {
         ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
         let snek_txt = ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 14.0);
         let snek_glitch_txt = ret.text_after(man, snek_txt, TextNames::SnekGlitch).unwrap();
-        text::add_glitch_trigger(man, snek_glitch_txt, snek_move_rx);
-        ret
+
+
+        let (tx_glitch, rx_glitch) = mpsc::channel();
+        let (tx_hall, rx_hall) = mpsc::channel();
+        let mut threshold = Threshold::new(Duration::MAX);
+        let mut moved = false;
+        ret.add_logic(man, move |dt| {
+            if !moved && snek_move_rx.try_recv().is_ok() {
+                moved = true;
+                let _ = tx_glitch.send(());
+                threshold.set_threshold(Duration::from_millis(3000));
+                threshold.reset();
+            }
+
+            if threshold.tick(dt) {
+                let _ = tx_hall.send(());
+                threshold.set_threshold(Duration::MAX);
+            }
+        });
+
+        text::add_glitch_trigger(man, snek_glitch_txt, rx_glitch);
+
+        (ret, rx_hall)
     }
 
-    pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> Self {
+    pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
         let fruit_txt = ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
         let fruit_glitch_txt = ret.text_under(man, fruit_txt, TextNames::FruitGlitch).unwrap();
         let fruit_id = fruit::bounded(man, ret.position, ret.dimensions, 3);
         let on_eat = fruit::make_eaten_trigger(man, fruit_id);
+        let on_kill = fruit::make_kill_trigger(man, fruit_id);
         text::add_glitch_trigger(man, fruit_glitch_txt, on_eat);
-
-        ret
+        
+        (ret, on_kill)
     }
 
-    
+    pub fn tut_attack(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
+        let attack_txt = ret.text_at(man, TextNames::Attack, Vec2::new(-ret.dimensions.x / 12.0, -ret.dimensions.y / 5.0), 1.0 / 28.0);
+        let attack_glitch_txt = ret.text_after(man, attack_txt, TextNames::AttackGlitch).unwrap();
+
+        let empower_glitch_txt = ret.text_at(man, TextNames::EmpowerGlitch, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
+        let empower_txt = ret.text_at(man, TextNames::Empower, Vec2::new(0.0, ret.dimensions.y / 3.5), 1.0 / 28.0);
+        let fruit_glitch_txt = ret.text_under(man, empower_txt, TextNames::FruitGlitchVariant).unwrap();
+
+        text::enable_glitching(man, attack_glitch_txt);
+        text::enable_glitching(man, empower_glitch_txt);
+        text::enable_glitching(man, fruit_glitch_txt);
+
+        let (tx, rx) = mpsc::channel();
+//        let _ = tx.send(());
+        (ret, rx)
+    }
+
+    pub fn tut_enemy(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        todo!()
+    }
 
     pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
         let next_pos = last.offset_from(last.hall_direction, last.dimensions);
@@ -375,11 +437,26 @@ impl Room {
             }
         };
         let mut ret = Self::empty(man, next_pos, rand_side, dimensions);
-        ret.break_wall(man, last.hall_direction.reverse(), last.width, None);
+        ret.break_wall(man, last.hall_direction.reverse(), last.hall_width, None);
         ret
     }
 
     // pub fn spires(man: &mut EntityManager) -> Self {
     //     let mut rng = thread_rng();
     // }
+}
+
+pub type FnRoomGen = fn(&mut EntityManager, &Room) -> (Room, Receiver<()>);
+const ROOM_ORDER: [FnRoomGen; 1] = [
+    // Room::tut_fruit,
+    // Room::tut_attack,
+    Room::tut_enemy,
+    // Room::procedural,
+];
+
+pub fn next_room(current_room: &mut usize) -> FnRoomGen {
+    let i = ROOM_ORDER.len().min(*current_room);
+    let ret = self::ROOM_ORDER[i];
+    *current_room += 1;
+    ret
 }

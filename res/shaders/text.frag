@@ -27,4 +27,8 @@ void main() {
 
     fragColor.rgb = vec3(1.0 - pow(foreground.a, 0.95));
     fragColor.a = foreground.a;
+
+    if (uCurrentFrame != 0.0) {
+        fragColor.rgb = 1.0 - fragColor.rgb;
+    }
 }
