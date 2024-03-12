@@ -1,9 +1,11 @@
-use std::{collections::HashMap, hash::Hash, mem::size_of_val, mem::{offset_of, size_of}};
+use std::{collections::HashMap, hash::Hash, mem::{offset_of, size_of}, os::windows::thread, time::{Duration, Instant}};
+
+use rand::{thread_rng, Rng};
 
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
-    gl::{self, ArrayBuffer, DrawContext, Shader, Texture2D, Vao},
-    math::{Mat4, Vec2}, resources::{self, Texture},
+    gl::{self, ArrayBuffer, DrawContext, Shader, Texture2D, Uniform, Vao},
+    math::{Mat4, Vec2}, resources::{self, Texture}, time::Threshold,
 };
 
 use super::VaoHelper;
@@ -21,8 +23,10 @@ as_bytes!(Vertex);
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum TextNames {
     Snek,
+    SnekGlitch,
     Controls,
     Fruit,
+    FruitGlitch,
 
     _NumTexts,
 }
@@ -34,8 +38,10 @@ impl TryFrom<u8> for TextNames {
         use TextNames as T;
         Ok(match value {
             0 => T::Snek,
-            1 => T::Controls,
-            2 => T::Fruit,
+            1 => T::SnekGlitch,
+            2 => T::Controls,
+            3 => T::Fruit,
+            4 => T::FruitGlitch,
 
             _ => Err(Error::InvalidTextNameId)?,
         })
@@ -47,8 +53,10 @@ impl TextNames {
         use crate::resources::textures::text::*;
         match self {
             Self::Snek => SNEK,
+            Self::SnekGlitch => SNEK_GLITCH,
             Self::Controls => CONTROLS,
             Self::Fruit => FRUIT,
+            Self::FruitGlitch => FRUIT_GLITCH,
 
             TextNames::_NumTexts => panic!(),
         }
@@ -57,10 +65,21 @@ impl TextNames {
     fn dimension(self) -> Vec2 {
         match self {
             Self::Snek => Vec2::new(62.0, 14.0),
+            Self::SnekGlitch => Vec2::new(14.0, 96.0),
             Self::Controls => Vec2::new(142.0, 38.0),
             Self::Fruit => Vec2::new(206.0, 14.0),
+            Self::FruitGlitch => Vec2::new(142.0, 192.0),
 
             Self::_NumTexts => panic!(),
+        }
+    }
+
+    pub fn frames(self) -> usize {
+        match self {
+            Self::SnekGlitch => 4,
+            Self::FruitGlitch => 8,
+            Self::_NumTexts => panic!(),
+            _ => 1,
         }
     }
 }
@@ -70,11 +89,12 @@ const VERTICES_PER_SHAPE: usize = 6;
 #[derive(Debug)]
 pub struct Text {
     name: TextNames,
+    frame: usize,
     vertices: [Vertex; VERTICES_PER_SHAPE],
 }
 
 impl Text {
-    fn new(name: TextNames) -> Self {
+    fn new(name: TextNames, frame: usize) -> Self {
         let corners = [
             Vertex {
                 pos: Vec2::new(-0.5, 0.5),
@@ -96,15 +116,20 @@ impl Text {
 
         Self {
             name,
+            frame,
             vertices: [
                 corners[0], corners[1], corners[2], corners[3], corners[2], corners[1],
             ],
         }
     }
 
-    pub fn place_at(name: TextNames, position: Vec2, scale: f32) -> Self {
-        Self::new(name)
+    pub fn place_at(name: TextNames, position: Vec2, scale: f32, frame: usize) -> Self {
+        let frames = name.frames() as f32;
+        let frame_adjust = Mat4::scale(Vec2::new(1.0, 1.0 / frames));
+
+        Self::new(name, frame)
             .transform(Mat4::scale(scale * name.dimension()))
+            .transform(frame_adjust)
             .transform(Mat4::translate((position, 0.0).into()))
             
     }
@@ -202,6 +227,10 @@ impl<'a> TextManager<'a> {
         self.texts.push(text);
     }
 
+    const BINDING_TEXT: usize = 0 ;
+    const UNIFORM_CURRENT_FRAME: i32 = 0;
+    const UNIFORM_TOTAL_FRAMES: i32 = 1;
+
     pub fn draw(&mut self) {
         self.vao.apply();
         self.shader.apply();
@@ -211,8 +240,10 @@ impl<'a> TextManager<'a> {
                 let bytes = unsafe { v.as_bytes() };
                 self.vbo.update(i * size_of::<Vertex>(), bytes);
             }
-
-            self.textures[&text.name].bind(0);
+            
+            self.textures[&text.name].bind(Self::BINDING_TEXT);
+            (text.frame as f32).uniform(Self::UNIFORM_CURRENT_FRAME);
+            (text.name.frames() as f32).uniform(Self::UNIFORM_TOTAL_FRAMES);
             gl::call!(DrawArrays(TRIANGLES, 0, VERTICES_PER_SHAPE as _));
         }
 

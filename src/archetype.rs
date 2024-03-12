@@ -411,30 +411,28 @@ pub mod fruit {
     }
 
     pub fn respawn(fruit: &mut EntityView) {
-        fruit.kill();
-
         let pos = if fruit.has_property("respawns") {
             let respawns = fruit.with_property("respawns", |&r: &i32| r);
             if respawns == 0 {
+                fruit.kill();
                 return;
-            } else if respawns > 0 {
+            } else {
                 fruit.with_mut_property("respawns", |r: &mut i32| *r -= 1);
             }
 
             let pos = fruit.with_property("bound.pos", |&b: &Vec2| b);
             let dim = fruit.with_property("bound.dim", |&d: &Vec2| d);
             let mut rng = thread_rng();
-            let x = rng.gen_range(0.0..dim.x).floor();
-            let y = rng.gen_range(0.0..dim.y).floor();
-            pos - 0.5 * Vec2::new(x, y)
+            let x = (0.5 * rng.gen_range(0.0..dim.x)).floor();
+            let y = (0.5 * rng.gen_range(0.0..dim.y)).floor();
+            pos - Vec2::new(x, y)
         } else {
             Vec2::default()
         };
 
-        fruit.request_spawn(Box::new(move |man| {
-            self::put_at(man, pos);
-        }));
         fruit.get_sound().play(Sounds::Eat);
+        println!("🍎 respawning at {pos:?}");
+        fruit.set_position((pos, 0.0).into());
     }
 }
 
@@ -597,21 +595,55 @@ pub mod swoop {
 }
 
 pub mod text {
+    use std::time::Duration;
+
+    use rand::{thread_rng, Rng};
+
     use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::Vec2, render::{text::{Text, TextNames}, RenderManager}};
+
+    pub const ANIMATION_TICK: u64 = 100;
 
     pub fn new(man: &mut EntityManager, name: TextNames, position: Vec2, scale: f32) -> EntityId {
         let id = man.spawn(Entities::Text, &[
             Components::Position,
             Components::Scale,
+            Components::Timer,
+
             Components::Properties,
         ]);
         
         let mut text = man.view(id).unwrap();
         text.set_position((position, 0.0).into());
         text.set_scale(scale.into());
+        text.access_timer(|t| t.set_threshold(Duration::from_millis(self::ANIMATION_TICK)));
         text.new_property("name", name);
+        text.new_property("frame", 0usize);
 
         id
+    }
+    
+    // target is 1 glitch every 1.5 seconds (=1500ms)
+    pub const AVERAGE_GLITCH_INTERVAL: u32 = 1500;
+
+    pub fn tick(dt: Duration, this: &mut EntityView) {
+        let tick = this.access_timer(|t| t.tick(dt));
+
+
+        let name = this.with_property("name", |&n: &TextNames| n);
+        let frame = this.with_property("frame", |&f: &usize| f);
+        if tick && frame > 0 {
+            // if animation is ongoing advance frame
+            let max_frames = name.frames();
+            let next_frame = (frame + 1) % max_frames;
+            this.with_mut_property("frame", |f: &mut usize| *f = next_frame);
+        } else if tick && name.frames() > 1 {
+            // if not animating, check if should animate
+            let mut rng = thread_rng();
+            if rng.gen_ratio(self::ANIMATION_TICK as _, self::AVERAGE_GLITCH_INTERVAL) {
+                this.with_mut_property("frame", |f: &mut usize| *f = 1);
+            }
+        }
+
     }
 
     pub fn draw(this: EntityView, renderer: &mut RenderManager) {
@@ -619,7 +651,8 @@ pub mod text {
         let scale = this.get_scale().x;
         let name = this.with_property("name", |n: &TextNames| *n);
 
-        let text = Text::place_at(name, position, scale);
+        let frame = this.with_property("frame", |&f: &usize| f);
+        let text = Text::place_at(name, position, scale, frame);
 
         renderer.push(text);
     }

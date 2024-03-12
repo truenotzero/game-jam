@@ -279,6 +279,7 @@ impl Room {
     /// view the room while keeping a 1:1 aspect ratio
     pub fn view(&self) -> Mat4 {
         let dim = self.dimensions.x.max(self.dimensions.y);
+        Mat4::scale((0.33).into()) * 
         Mat4::screen(self.position, dim, dim)
     }
 
@@ -318,14 +319,15 @@ impl Room {
     pub fn tut_controls(man: &mut EntityManager) -> Self {
         let mut ret = Self::empty(man, Vec2::new(0.0, 0.0), Direction::random(), Vec2::diagonal(20.0));
         ret.text_at(man, TextNames::Snek, Vec2::new(0.0, -ret.dimensions.y / 4.0), 1.0 / 7.0);
-        ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 14.0);
+        // ret.text_at(man, TextNames::Controls, Vec2::new(0.0, ret.dimensions.y / 4.0), 1.0 / 14.0);
+        ret.text_at(man, TextNames::SnekGlitch, Vec2::new(0.0, ret.dimensions.y / 5.0), 1.0 / 7.0);
         ret
     }
 
     pub fn tut_fruit(man: &mut EntityManager, last: &Room) -> Self {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
         ret.text_at(man, TextNames::Fruit, Vec2::new(0.0, -ret.dimensions.y / 5.0), 1.0 / 14.0);
-        archetype::fruit::put_at(man, ret.random_position());
+        archetype::fruit::bounded(man, ret.position, ret.dimensions, 3);
         ret
     }
 

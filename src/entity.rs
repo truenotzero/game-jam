@@ -50,6 +50,7 @@ impl Entities {
             Self::SnakeBody => snake::body_tick(dt, entity),
             Self::Fireball => fireball::tick(dt, entity),
             Self::Swoop => swoop::tick(dt, entity),
+            Self::Text => text::tick(dt, entity),
             _ => (),
         }
     }

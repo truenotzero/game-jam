@@ -25,8 +25,10 @@ pub mod text {
     use super::Texture;
 
     pub const SNEK: Texture = load!("textures/text/snek.png");
+    pub const SNEK_GLITCH: Texture = load!("textures/text/snek-glitch.png");
     pub const CONTROLS: Texture = load!("textures/text/controls.png");
     pub const FRUIT: Texture = load!("textures/text/fruit.png");
+    pub const FRUIT_GLITCH: Texture = load!("textures/text/fruit-glitch.png");
 }
 }
 
