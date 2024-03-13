@@ -12,7 +12,6 @@ Content:
 - Enemies:
     - [x] Static enemy (turret)
     - [x] Shielded enemy
-    - [ ] Mobile enemy
 - [x] Powerup system
     - [x] Swoop animation
         - [x] swoop attack (basic)
@@ -34,7 +33,12 @@ Content:
     - [x] Attacks
     - [x] Enemies
     - [x] Shielded enemies
-    - [ ] Goal
+- [ ] Rooms
+    - [x] Feast
+    - [x] Easy Swarm
+    - [x] Hard Swarm
+    - [ ] Boss (if time allows)
+- [ ] 'Welcome Back'
 - [ ] 'Insert Disk' startup sequence
 
 Fixes:
@@ -45,6 +49,8 @@ Fixes:
 - [-] Forcefield overlapping
 - [x] Mouse-to-world coordinate converison
 - [x] Shooting while camera is lerping
+- [ ] Constant randomness between all consumers of random
+- [ ] Room stacking (clashes with hallways when random sizes are used)
 
 
 After the jam:

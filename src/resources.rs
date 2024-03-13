@@ -24,6 +24,7 @@ pub mod textures {
     pub mod text {
         use super::Texture;
 
+        // tutorial room text
         pub const SNEK: Texture = load!("textures/text/snek.png");
         pub const SNEK_GLITCH: Texture = load!("textures/text/snek-glitch.png");
         pub const CONTROLS: Texture = load!("textures/text/controls.png");
@@ -38,6 +39,10 @@ pub mod textures {
         pub const ENEMY_GLITCH: Texture = load!("textures/text/enemy-glitch.png");
         pub const SHIELD: Texture = load!("textures/text/shield.png");
         pub const SHIELD_GLITCH: Texture = load!("textures/text/shield-glitch.png");
+
+        pub const LUCKY_GLITCH: Texture = load!("textures/text/lucky-glitch.png");
+        pub const SWARM_GLITCH: Texture = load!("textures/text/swarm-glitch.png");
+        pub const BOSS_GLITCH: Texture = load!("textures/text/boss-glitch.png");
     }
 }
 

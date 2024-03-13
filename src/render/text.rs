@@ -24,6 +24,7 @@ as_bytes!(Vertex);
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum TextNames {
+    // tutorial
     Snek,
     SnekGlitch,
     Controls,
@@ -38,6 +39,10 @@ pub enum TextNames {
     EnemyGlitch,
     Shield,
     ShieldGlitch,
+    // gameplay
+    LuckyGlitch,
+    SwarmGlitch,
+    BossGlitch,
 
     _NumTexts,
 }
@@ -63,6 +68,10 @@ impl TryFrom<u8> for TextNames {
             12 => T::Shield,
             13 => T::ShieldGlitch,
 
+            14 => T::LuckyGlitch,
+            15 => T::SwarmGlitch,
+            16 => T::BossGlitch,
+
             _ => Err(Error::InvalidTextNameId)?,
         })
     }
@@ -87,6 +96,10 @@ impl TextNames {
             Self::Shield => SHIELD,
             Self::ShieldGlitch => SHIELD_GLITCH,
 
+            Self::LuckyGlitch => LUCKY_GLITCH,
+            Self::SwarmGlitch => SWARM_GLITCH,
+            Self::BossGlitch => BOSS_GLITCH,
+
             TextNames::_NumTexts => panic!(),
         }
     }
@@ -108,6 +121,10 @@ impl TextNames {
             Self::Shield => Vec2::new(398.0, 14.0),
             Self::ShieldGlitch => Vec2::new(142.0, 192.0),
 
+            Self::LuckyGlitch => Vec2::new(174.0, 192.0),
+            Self::SwarmGlitch => Vec2::new(302.0, 264.0),
+            Self::BossGlitch => Vec2::new(126.0, 192.0),
+
             Self::_NumTexts => panic!(),
         }
     }
@@ -121,6 +138,11 @@ impl TextNames {
             Self::EmpowerGlitch => 8,
             Self::EnemyGlitch => 8,
             Self::ShieldGlitch => 8,
+
+            Self::LuckyGlitch => 8,
+            Self::SwarmGlitch => 11,
+            Self::BossGlitch => 8,
+
             Self::_NumTexts => panic!(),
             _ => 1,
         }

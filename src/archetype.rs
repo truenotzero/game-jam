@@ -85,7 +85,7 @@ pub mod snake {
     const ATTACK_SPEED_CAP: Duration = Duration::from_millis(500);
     const ATTACK_CDR_PER_POWER: Duration = Duration::from_millis(50);
 
-    pub fn new(man: &mut EntityManager) -> EntityId {
+    pub fn new(man: &mut EntityManager, position: Vec2) -> EntityId {
         let id = man.spawn(
             Entities::SnakeHead,
             &[
@@ -103,7 +103,7 @@ pub mod snake {
         );
 
         let mut snake = man.view(id).unwrap();
-        snake.set_position(Vec3::new(1.0, 1.0, 0.0));
+        snake.set_position((position, -1.0).into());
         snake.access_timer(|t| t.set_threshold(STEP));
 
         snake.new_property("score", 0);
@@ -187,7 +187,7 @@ pub mod snake {
         });
 
         let cdr = self::ATTACK_CDR_PER_POWER * new_score as _;
-        let new_cd = self::ATTACK_COOLDOWN - cdr;
+        let new_cd = self::ATTACK_COOLDOWN.saturating_sub(cdr);
         let capped_cd = self::ATTACK_SPEED_CAP.max(new_cd);
         this.with_mut_property("attack_timer", |t: &mut Cooldown| {
             t.set_cooldown(capped_cd);
@@ -245,8 +245,8 @@ pub mod snake {
                     // },
                     K::Space => {
                         // if !snake.get_property::<bool>("can_attack") { continue; }
-                        // if snake.with_property("attack_timer", |t: &Cooldown| t.is_cooling_down()) { continue; }
-                        // snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.cool_down());
+                        if snake.with_property("attack_timer", |t: &Cooldown| t.is_cooling_down()) { continue; }
+                        snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.cool_down());
 
                         if snake.has_property("attack_tx") {
                             let _ = snake.with_property("attack_tx", |t: &Sender<()>| t.send(()));
@@ -256,9 +256,9 @@ pub mod snake {
                         let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
                             match power {
-                                // 0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
-                                // 2 => super::swoop::strong_attack(man, pos, last_dir),
-                                0 => super::fireball::weak_attack(man, pos, mouse),
+                                0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
+                                2 => super::swoop::strong_attack(man, pos, last_dir),
+                                3 => super::fireball::weak_attack(man, pos, mouse),
                                 e if e >= 4 => super::fireball::strong_attack(man, pos, mouse),
                                 _ => panic!(),
                             };
@@ -472,14 +472,14 @@ pub mod fruit {
     /// pos is the center of the bounds
     /// dim is the dimension around the bounds
     /// for use with room api
-    pub fn bounded(man: &mut EntityManager, pos: Vec2, dim: Vec2, respawns: i32) -> EntityId {
+    pub fn bounded(man: &mut EntityManager, rand_gen: impl Fn(Vec2) -> Vec2 + 'static, respawns: i32) -> EntityId {
+        let pos = rand_gen(Vec2::diagonal(0.5));
         let id = self::put_at(man, pos);
 
-        let mut fruit = man.view(id).unwrap();
+        let fruit = man.view(id).unwrap();
         fruit.new_property("respawns", respawns);
-        fruit.new_property("bound.pos", pos);
-        fruit.new_property("bound.dim", dim);
-        fruit.set_position((pos, 0.0).into());
+        let boxed: Box<dyn Fn(Vec2) -> Vec2> = Box::new(rand_gen);
+        fruit.new_property("rand_gen", boxed);
 
         id
     }
@@ -506,12 +506,14 @@ pub mod fruit {
                 fruit.with_mut_property("respawns", |r: &mut i32| *r -= 1);
             }
 
-            let pos = fruit.with_property("bound.pos", |&b: &Vec2| b);
-            let dim = fruit.with_property("bound.dim", |&d: &Vec2| d);
-            let mut rng = thread_rng();
-            let x = (0.5 * rng.gen_range(0.0..dim.x)).floor();
-            let y = (0.5 * rng.gen_range(0.0..dim.y)).floor();
-            pos - Vec2::new(x, y)
+            // let pos = fruit.with_property("bound.pos", |&b: &Vec2| b);
+            // let dim = fruit.with_property("bound.dim", |&d: &Vec2| d);
+            // let mut rng = thread_rng();
+            // let x = (0.5 * rng.gen_range(0.0..dim.x)).floor();
+            // let y = (0.5 * rng.gen_range(0.0..dim.y)).floor();
+            // pos - Vec2::new(x, y)
+            let last_pos = fruit.get_position().into();
+            fruit.with_property("rand_gen", |r: &Box<dyn Fn(Vec2) -> Vec2>| r(last_pos))
         } else {
             Vec2::default()
         };

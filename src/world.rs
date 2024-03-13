@@ -67,7 +67,7 @@ impl Room {
 
     /// helps calculate offsets
     /// returns the center for the new room with given dimensions
-    pub fn offset_from(&self, direction: Direction, dimensions: Scale) -> Vec2 {
+    pub fn offset_from(&self, next_room_at: Direction, next_room_dim: Scale) -> Vec2 {
         let pos = if let Some(hall) = &self.hall {
             hall.position
         } else {
@@ -80,8 +80,8 @@ impl Room {
             self.dimensions
         };
 
-        let d = Vec2::from(direction);
-        pos + 0.5 * d * (dim + dimensions)
+        let d = Vec2::from(next_room_at);
+        (pos + 0.5 * d * (dim + next_room_dim)).floor()
     }
 
     /// give hallway and snake into self
@@ -407,10 +407,30 @@ impl Room {
 
     /// generate a random position in the room (in world space coordinates)
     pub fn random_position(&self) -> Vec2 {
-        let mut rng = thread_rng();
-        let x = rng.gen_range(1.0..=self.dimensions.x - 1.0).floor();
-        let y = rng.gen_range(1.0..=self.dimensions.y - 1.0).floor();
-        self.position - 0.5 * Vec2::new(x, y)
+        Self::make_random_gen(&self)(Vec2::diagonal(0.5))
+    }
+
+    fn make_random_gen(&self) -> impl Fn(Vec2) -> Vec2 {
+        let dimensions = self.dimensions;
+        let position = self.position;
+        move |v| {
+            let mut rng = thread_rng();
+            loop {
+                // let x = (0.5 * rng.gen_range(1.0..dimensions.x - 1.0)).floor();
+                // let y = (0.5 * rng.gen_range(1.0..dimensions.y - 1.0)).floor();
+                // let next = position - Vec2::new(x, y);
+                let dx = (dimensions.x - 4.0) * 0.5;
+                let dy = (dimensions.y - 4.0) * 0.5;
+                let x = rng.gen_range(-dx..dx).floor();
+                let y = rng.gen_range(-dy..dy).floor();
+                let next = position - Vec2::new(x,y);
+
+
+                if !v.eq(next) {
+                    break next;
+                }
+            }
+        }
     }
 
     pub fn add_logic(&mut self, man: &mut EntityManager, on_tick: impl FnMut(Duration) + 'static) {
@@ -424,7 +444,10 @@ impl Room {
     // Room types
     fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale, snake_id: EntityId) -> Self {
         let mut ret = Self::new(man, position, dimensions, snake_id);
-        ret.make_hall(man, side, 2, 6);
+        let mut rng = thread_rng();
+        let width = rng.gen_range(1..4) * 2;
+        let length = rng.gen_range(5..=10) * 2;
+        ret.make_hall(man, side, width, length);
         ret
     }
 
@@ -442,14 +465,17 @@ impl Room {
     }
 
     pub fn tut_controls(man: &mut EntityManager) -> (Self, Receiver<()>) {
-        let snek = snake::new(man);
         let mut ret = Self::empty(
             man,
             Vec2::new(0.0, 0.0),
             Direction::random(),
             Vec2::diagonal(20.0),
-            snek,
+            0,
         );
+
+        let snake_position =ret.random_position();
+        let snek = snake::new(man, snake_position);
+        ret.snake_id = snek;
 
         let snek_move_rx = snake::make_move_trigger(man, snek);
 
@@ -504,8 +530,7 @@ impl Room {
             .text_after(man, fruit_txt, TextNames::FruitGlitch)
             .unwrap();
 
-        let fruit_pos = ret.random_position();
-        let fruit_id = fruit::bounded(man, fruit_pos, ret.dimensions, 2);
+        let fruit_id = fruit::bounded(man, ret.make_random_gen(), 2);
         let on_eat = fruit::make_eaten_trigger(man, fruit_id);
         let on_kill = fruit::make_kill_trigger(man, fruit_id);
         text::add_glitch_trigger(man, fruit_glitch_txt, on_eat);
@@ -583,9 +608,21 @@ impl Room {
         (ret, rx)
     }
 
-    pub fn room_procedural(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
-        const ROOMS: [FnRoomGen; 0] = [
+    fn proc_next(man: &mut EntityManager, last: &Room) -> Self {
+        // let mut rng = thread_rng();
+        // let width = rng.gen_range(8..=40) as f32;
+        // let height = rng.gen_range(8..=40) as f32;
+        // let dimensions = Vec2::new(width, height);
+        Self::next(man, last, Vec2::diagonal(20.0))
+    }
 
+    pub fn procedural(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        const ROOMS: [FnRoomGen; 5] = [
+            Room::lucky,
+            Room::lucky,
+            Room::easy_swarm,
+            Room::easy_swarm,
+            Room::hard_swarm,
         ];
 
         let mut rng = thread_rng();
@@ -593,7 +630,116 @@ impl Room {
         ROOMS[i](man, last)
     }
 
-    // fn lucky()
+    fn lucky(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        let mut rng = thread_rng();
+        let num_fruits = rng.gen_range(4..=7);
+
+        let mut ret = Self::proc_next(man, last);
+        let txt = ret.text_at(man, TextNames::LuckyGlitch, Vec2::new(-0.5, 0.0), 1.0 / 14.0);
+        
+        let fruit_id = fruit::bounded(man, ret.make_random_gen(), num_fruits);
+        let rx = fruit::make_kill_trigger(man, fruit_id);
+        let glitch_trigger = fruit::make_eaten_trigger(man, fruit_id);
+        text::add_glitch_trigger(man, txt, glitch_trigger);
+
+        (ret, rx)
+    }
+
+    fn easy_swarm(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        let mut rng = thread_rng();
+        let num_enemies = rng.gen_range(10..16);
+
+        let mut ret = Self::proc_next(man, last);
+        let txt = ret.text_at(man, TextNames::SwarmGlitch, Vec2::new(-0.5, 0.0), 1.0 / 20.0);
+        
+        let glitch_trigger = snake::make_attack_trigger(man, ret.snake_id);
+        text::add_glitch_trigger(man, txt, glitch_trigger);
+
+        let mut enemy_positions = Vec::new();
+        for _ in 0..num_enemies {
+            loop {
+                let next = ret.random_position();
+                if !enemy_positions.contains(&next) {
+                    enemy_positions.push(next);
+                    break;
+                }
+            }
+        }
+
+        // let mut rng = thread_rng();
+        let mut enemy_die_triggers = Vec::new();
+        for p in enemy_positions {
+            // let hp = rng.gen_range(1..=3);
+            let e = enemy::new(man, p, 1);
+            let trigger = enemy::make_kill_trigger(man, e);
+            enemy_die_triggers.push(trigger);
+        }
+
+        let mut ctr = 0;
+        let total = enemy_die_triggers.len();
+        let (tx, rx) = mpsc::channel();
+        ret.add_logic(man, move |_| {
+            for t in &enemy_die_triggers {
+                if t.try_recv().is_ok() {
+                    ctr += 1;
+                }
+            }
+
+            if ctr == total {
+                let _ = tx.send(());
+            }
+        });
+
+        (ret, rx)
+    }
+
+    fn hard_swarm(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        let mut rng = thread_rng();
+        let num_enemies = rng.gen_range(6..=12);
+
+        let mut ret = Self::proc_next(man, last);
+        let txt = ret.text_at(man, TextNames::SwarmGlitch, Vec2::new(-0.5, 0.0), 1.0 / 20.0);
+        
+        let glitch_trigger = snake::make_attack_trigger(man, ret.snake_id);
+        text::add_glitch_trigger(man, txt, glitch_trigger);
+
+        let mut enemy_positions = Vec::new();
+        for _ in 0..num_enemies {
+            loop {
+                let next = ret.random_position();
+                if !enemy_positions.contains(&next) {
+                    enemy_positions.push(next);
+                    break;
+                }
+            }
+        }
+
+        let mut rng = thread_rng();
+        let mut enemy_die_triggers = Vec::new();
+        for p in enemy_positions {
+            let hp = rng.gen_range(2..=6);
+            let e = enemy::new(man, p, hp);
+            let trigger = enemy::make_kill_trigger(man, e);
+            enemy_die_triggers.push(trigger);
+        }
+
+        let mut ctr = 0;
+        let total = enemy_die_triggers.len();
+        let (tx, rx) = mpsc::channel();
+        ret.add_logic(man, move |_| {
+            for t in &enemy_die_triggers {
+                if t.try_recv().is_ok() {
+                    ctr += 1;
+                }
+            }
+
+            if ctr == total {
+                let _ = tx.send(());
+            }
+        });
+
+        (ret, rx)
+    }
 
     // pub fn spires(man: &mut EntityManager) -> Self {
     //     let mut rng = thread_rng();
@@ -601,12 +747,12 @@ impl Room {
 }
 
 pub type FnRoomGen = fn(&mut EntityManager, &Room) -> (Room, Receiver<()>);
-const ROOM_ORDER: [FnRoomGen; 1] = [
-    // Room::tut_fruit,
-    // Room::tut_attack,
-    // Room::tut_enemy,
+const ROOM_ORDER: [FnRoomGen; 5] = [
+    Room::tut_fruit,
+    Room::tut_attack,
+    Room::tut_enemy,
     Room::tut_shield,
-    // Room::procedural,
+    Room::procedural,
 ];
 
 pub fn next_room(current_room: &mut usize) -> FnRoomGen {

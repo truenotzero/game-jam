@@ -1,4 +1,4 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 use std::mem::{self, swap};
 
@@ -219,19 +219,19 @@ impl<'a> Game<'a> {
             return;
         }
 
-        match key {
-            Key::G => {
-                let view = self.current_view;
-                self.move_camera(Mat4::scale(0.25.into()) * view);
-            }
-            Key::B => {
-                if let Some((hall, room)) = self.room.open_hallway(&mut self.man) {
-                    self.pan_to_hall_trigger = Some(hall);
-                    self.pan_to_room_trigger = Some(room);
-                }
-            }
-            _ => (),
-        }
+        // match key {
+        //     Key::G => {
+        //         let view = self.current_view;
+        //         self.move_camera(Mat4::scale(0.25.into()) * view);
+        //     }
+        //     Key::B => {
+        //         if let Some((hall, room)) = self.room.open_hallway(&mut self.man) {
+        //             self.pan_to_hall_trigger = Some(hall);
+        //             self.pan_to_room_trigger = Some(room);
+        //         }
+        //     }
+        //     _ => (),
+        // }
 
         let _ = self.keystroke_tx.send(key);
     }
