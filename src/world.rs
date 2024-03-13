@@ -8,7 +8,7 @@ use std::{
 use rand::{thread_rng, Rng};
 
 use crate::{
-    archetype::{self, fruit, logic, snake, text},
+    archetype::{self, enemy, fruit, logic, snake, text},
     entity::{Direction, Entities, EntityId, EntityManager, Position, Scale},
     math::{Mat4, Vec2, Vec3, Vec4},
     render::text::TextNames,
@@ -410,7 +410,7 @@ impl Room {
         let mut rng = thread_rng();
         let x = rng.gen_range(1.0..=self.dimensions.x - 1.0).floor();
         let y = rng.gen_range(1.0..=self.dimensions.y - 1.0).floor();
-        self.position + (x, y).into()
+        self.position - 0.5 * Vec2::new(x, y)
     }
 
     pub fn add_logic(&mut self, man: &mut EntityManager, on_tick: impl FnMut(Duration) + 'static) {
@@ -424,7 +424,7 @@ impl Room {
     // Room types
     fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale, snake_id: EntityId) -> Self {
         let mut ret = Self::new(man, position, dimensions, snake_id);
-        ret.make_hall(man, side, 2, 28);
+        ret.make_hall(man, side, 2, 6);
         ret
     }
 
@@ -484,13 +484,15 @@ impl Room {
         let fruit_txt = ret.text_at(
             man,
             TextNames::Fruit,
-            Vec2::new(-ret.dimensions.x / 7.0, -ret.dimensions.y / 5.0),
-            1.0 / 14.0,
+            Vec2::new(-ret.dimensions.x / 12.0, -ret.dimensions.y / 5.0),
+            1.0 / 28.0,
         );
         let fruit_glitch_txt = ret
             .text_after(man, fruit_txt, TextNames::FruitGlitch)
             .unwrap();
-        let fruit_id = fruit::bounded(man, ret.position, ret.dimensions, 2);
+
+        let fruit_pos = ret.random_position();
+        let fruit_id = fruit::bounded(man, fruit_pos, ret.dimensions, 2);
         let on_eat = fruit::make_eaten_trigger(man, fruit_id);
         let on_kill = fruit::make_kill_trigger(man, fruit_id);
         text::add_glitch_trigger(man, fruit_glitch_txt, on_eat);
@@ -539,7 +541,37 @@ impl Room {
     }
 
     pub fn tut_enemy(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
-        todo!()
+        let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
+        let enemy_pos = ret.random_position();
+        let enemy = enemy::shield_enemy(man, enemy_pos);
+        let rx = enemy::make_kill_trigger(man, enemy);
+
+        let enemy_txt = ret.text_at(man, TextNames::Enemy, Vec2::new(-ret.dimensions.x / 10.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
+        let enemy_glitch_txt = ret.text_after(man, enemy_txt, TextNames::EnemyGlitch).unwrap();
+
+        text::enable_glitching(man, enemy_txt);
+        text::enable_glitching(man, enemy_glitch_txt);
+
+        (ret, rx)
+    }
+
+    pub fn tut_shield(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
+        let enemy0 = enemy::shield_enemy(man, ret.random_position());
+        let enemy = enemy::shield_enemy(man, ret.random_position());
+        {
+            let mut venemy = man.view(enemy).unwrap();
+            enemy::hit(&mut venemy);
+        }
+
+        let enemy2 = enemy::new(man, ret.random_position(), 3);
+        {
+            let mut venemy = man.view(enemy2).unwrap();
+            enemy::hit(&mut venemy);
+        }
+
+        let rx = enemy::make_kill_trigger(man, enemy);
+        (ret, rx)
     }
 
     pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
@@ -561,10 +593,11 @@ impl Room {
 }
 
 pub type FnRoomGen = fn(&mut EntityManager, &Room) -> (Room, Receiver<()>);
-const ROOM_ORDER: [FnRoomGen; 3] = [
-    Room::tut_fruit,
-    Room::tut_attack,
-    Room::tut_enemy,
+const ROOM_ORDER: [FnRoomGen; 1] = [
+    // Room::tut_fruit,
+    // Room::tut_attack,
+    // Room::tut_enemy,
+    Room::tut_shield,
     // Room::procedural,
 ];
 

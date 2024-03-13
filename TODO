@@ -10,7 +10,8 @@ Key:
 Content:
 --------
 - Enemies:
-    - [ ] Static enemy (turret)
+    - [x] Static enemy (turret)
+    - [x] Shielded enemy
     - [ ] Mobile enemy
 - [x] Powerup system
     - [x] Swoop animation
@@ -21,7 +22,7 @@ Content:
         - [x] Fireball attack (upgrade)
         - [x] Fireball alpha ramp
         - [-] Fireball speedup
-    - [ ] Attack CD + CDR
+    - [!] Attack CD + CDR
 - [x] CRT shader
 - [x] Text renderer
 - [x] Glitch text renderer
@@ -31,6 +32,7 @@ Content:
     - [x] Attacks
     - [ ] Enemies
     - [ ] Goal
+- [ ] 'Insert Disk' startup sequence
 
 Fixes:
 ------

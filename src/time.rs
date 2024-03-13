@@ -54,12 +54,19 @@ impl Cooldown {
         self.cooldown = cooldown;
     }
 
-    pub fn tick(&mut self, dt: Duration) -> bool {
+    pub fn tick(&mut self, dt: Duration) {
         self.acc = self.acc.saturating_sub(dt);
-        self.acc.is_zero()
+    }
+
+    pub fn is_cooling_down(&self) -> bool {
+        !self.acc.is_zero()
     }
 
     pub fn reset(&mut self) {
+        self.acc = Duration::ZERO;
+    }
+
+    pub fn cool_down(&mut self) {
         self.acc = self.cooldown;
     }
 }

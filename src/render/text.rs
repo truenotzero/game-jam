@@ -34,6 +34,10 @@ pub enum TextNames {
     AttackGlitch,
     Empower,
     EmpowerGlitch,
+    Enemy,
+    EnemyGlitch,
+    Shield,
+    ShieldGlitch,
 
     _NumTexts,
 }
@@ -54,6 +58,10 @@ impl TryFrom<u8> for TextNames {
             7 => T::AttackGlitch,
             8 => T::Empower,
             9 => T::EmpowerGlitch,
+            10 => T::Enemy,
+            11 => T::EnemyGlitch,
+            12 => T::Shield,
+            13 => T::ShieldGlitch,
 
             _ => Err(Error::InvalidTextNameId)?,
         })
@@ -74,6 +82,10 @@ impl TextNames {
             Self::AttackGlitch => ATTACK_GLITCH,
             Self::Empower => EMPOWER,
             Self::EmpowerGlitch => EMPOWER_GLITCH,
+            Self::Enemy => ENEMY,
+            Self::EnemyGlitch => ENEMY_GLITCH,
+            Self::Shield => SHIELD,
+            Self::ShieldGlitch => SHIELD_GLITCH,
 
             TextNames::_NumTexts => panic!(),
         }
@@ -91,6 +103,10 @@ impl TextNames {
             Self::AttackGlitch => Vec2::new(174.0, 192.0),
             Self::Empower => Vec2::new(174.0, 14.0),
             Self::EmpowerGlitch => Vec2::new(206.0, 192.0),
+            Self::Enemy => Vec2::new(174.0, 14.0),
+            Self::EnemyGlitch => Vec2::new(158.0, 192.0),
+            Self::Shield => Vec2::new(398.0, 14.0),
+            Self::ShieldGlitch => Vec2::new(142.0, 192.0),
 
             Self::_NumTexts => panic!(),
         }
@@ -103,6 +119,8 @@ impl TextNames {
             Self::FruitGlitchVariant => 8,
             Self::AttackGlitch => 8,
             Self::EmpowerGlitch => 8,
+            Self::EnemyGlitch => 8,
+            Self::ShieldGlitch => 8,
             Self::_NumTexts => panic!(),
             _ => 1,
         }

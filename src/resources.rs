@@ -34,6 +34,10 @@ pub mod textures {
         pub const ATTACK_GLITCH: Texture = load!("textures/text/attack-glitch.png");
         pub const EMPOWER: Texture = load!("textures/text/empower.png");
         pub const EMPOWER_GLITCH: Texture = load!("textures/text/empower-glitch.png");
+        pub const ENEMY: Texture = load!("textures/text/enemy.png");
+        pub const ENEMY_GLITCH: Texture = load!("textures/text/enemy-glitch.png");
+        pub const SHIELD: Texture = load!("textures/text/shield.png");
+        pub const SHIELD_GLITCH: Texture = load!("textures/text/shield-glitch.png");
     }
 }
 

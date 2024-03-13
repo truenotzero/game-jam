@@ -1,14 +1,14 @@
 #version 450 core
 
 layout (location = 0) in vec2 aPos;
-layout (location = 1) in vec3 aCol;
+layout (location = 1) in vec4 aCol;
 layout (location = 2) in float aRadius;
 layout (location = 3) in int aIsFix;
 layout (location = 4) in int aNumSides;
 layout (location = 5) in vec2 aSides[4]; // locations [5,8]
 
 
-out vec3 vshieldCol;
+out vec4 vshieldCol;
 out float vradius;
 out int visFix;
 out int vnumSides;

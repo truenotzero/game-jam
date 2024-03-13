@@ -81,9 +81,9 @@ pub mod snake {
 
     const STEP: Duration = Duration::from_millis(150);
     const POWER_LEVELUP: i32 = 3;
-    const ATTACK_COOLDOWN: Duration = Duration::from_millis(3000);
+    const ATTACK_COOLDOWN: Duration = Duration::from_millis(1000);
     const ATTACK_SPEED_CAP: Duration = Duration::from_millis(500);
-    const ATTACK_CDR_PER_POWER: Duration = Duration::from_millis(100);
+    const ATTACK_CDR_PER_POWER: Duration = Duration::from_millis(50);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
         let id = man.spawn(
@@ -179,15 +179,27 @@ pub mod snake {
         exit(0);
     }
 
-    pub fn grow(entity: &mut EntityView) {
-        entity.with_mut_property("score", |s: &mut i32| *s += 1);
+    pub fn grow(this: &mut EntityView) {
+        let new_score = this.with_mut_property("score", |s: &mut i32| {
+            let new_score = *s + 1;
+            *s = new_score;
+            new_score
+        });
 
-        entity.with_mut_property("smoothing", |s| *s = true);
-        let mut len = entity.get_body_length();
+        let cdr = self::ATTACK_CDR_PER_POWER * new_score as _;
+        let new_cd = self::ATTACK_COOLDOWN - cdr;
+        let capped_cd = self::ATTACK_SPEED_CAP.max(new_cd);
+        this.with_mut_property("attack_timer", |t: &mut Cooldown| {
+            t.set_cooldown(capped_cd);
+            t.reset();
+        });
+
+        this.with_mut_property("smoothing", |s| *s = true);
+        let mut len = this.get_body_length();
         if len == 0 {
             len += 1;
         }
-        entity.set_body_length(len + 1);
+        this.set_body_length(len + 1);
     }
 
     pub fn head_tick(dt: Duration, snake: &mut EntityView) {
@@ -197,6 +209,8 @@ pub mod snake {
                 snake.remove_property("enable_attack_trigger");
             }
         }
+
+        snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.tick(dt));
 
         if !snake.access_timer(|t| t.tick(dt)) {
             return;
@@ -217,20 +231,22 @@ pub mod snake {
                     K::A | K::Left => Direction::Left,
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
-                    K::Q => {
-                        snake.request_spawn(Box::new(move |man| {
-                                super::fireball::weak_attack(man, pos, mouse);
-                        }));
-                        continue;
-                    },
-                    K::E => {
-                        snake.request_spawn(Box::new(move |man| {
-                                super::fireball::strong_attack(man, pos, mouse);
-                        }));
-                        continue;
-                    },
+                    // K::Q => {
+                    //     snake.request_spawn(Box::new(move |man| {
+                    //             super::fireball::weak_attack(man, pos, mouse);
+                    //     }));
+                    //     continue;
+                    // },
+                    // K::E => {
+                    //     snake.request_spawn(Box::new(move |man| {
+                    //             super::fireball::strong_attack(man, pos, mouse);
+                    //     }));
+                    //     continue;
+                    // },
                     K::Space => {
-                        // if !snake.get_property::<bool>("can_attack") { continue; }
+                        if !snake.get_property::<bool>("can_attack") { continue; }
+                        if snake.with_property("attack_timer", |t: &Cooldown| t.is_cooling_down()) { continue; }
+                        snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.cool_down());
 
                         if snake.has_property("attack_tx") {
                             let _ = snake.with_property("attack_tx", |t: &Sender<()>| t.send(()));
@@ -240,18 +256,12 @@ pub mod snake {
                         let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
                             match power {
-                                // 0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
-                                // 2 => super::swoop::strong_attack(man, pos, last_dir),
-                                _ => super::fireball::weak_attack(man, pos, mouse),
-                                // _ => panic!()
+                                0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
+                                2 => super::swoop::strong_attack(man, pos, last_dir),
+                                3 => super::fireball::weak_attack(man, pos, mouse),
+                                e if e >= 4 => super::fireball::strong_attack(man, pos, mouse),
+                                _ => panic!(),
                             };
-                            // fireball::new(
-                            //     man,
-                            //     palette::PaletteKey::Snake,
-                            //     0.5,
-                            //     pos,
-                            //     Vec3::from((mouse, 0.0)),
-                            // );
                         }));
                         continue;
                     }
@@ -281,40 +291,40 @@ pub mod snake {
         snake.set_position(new_pos);
     }
 
-    fn draw_shield(
-        pos: Vec3,
-        neighbors: &[Direction],
-        renderer: &mut RenderManager,
-        palette: Palette,
-    ) {
-        use Direction as D;
+    // fn draw_shield(
+    //     pos: Vec3,
+    //     neighbors: &[Direction],
+    //     renderer: &mut RenderManager,
+    //     palette: Palette,
+    // ) {
+    //     use Direction as D;
 
-        let pos = Vec2::from(pos);
+    //     let pos = Vec2::from(pos);
 
-        let shield = [D::Up, D::Down, D::Left, D::Right]
-            .into_iter()
-            .filter(|d| !neighbors.contains(d))
-            .fold(Shield::new(pos, palette.snake, false, 0.4), |shield, d| {
-                shield.push_side(d.into())
-            });
+    //     let shield = [D::Up, D::Down, D::Left, D::Right]
+    //         .into_iter()
+    //         .filter(|d| !neighbors.contains(d))
+    //         .fold(Shield::new(pos, palette.snake, false, 0.4), |shield, d| {
+    //             shield.push_side(d.into())
+    //         });
 
-        // renderer.push(shield);
+    //     // renderer.push(shield);
 
-        if neighbors.len() == 2 {
-            let n1 = neighbors[0].into();
-            let n2 = neighbors[1].into();
+    //     if neighbors.len() == 2 {
+    //         let n1 = neighbors[0].into();
+    //         let n2 = neighbors[1].into();
 
-            if f32_eq(Vec2::dot(n1, n2), 0.0) {
-                // the vectors are at a right angle
-                // fix should be applied
-                let fix = Shield::new(pos, palette.snake, true, 0.4)
-                    .push_side(n1)
-                    .push_side(n2);
+    //         if f32_eq(Vec2::dot(n1, n2), 0.0) {
+    //             // the vectors are at a right angle
+    //             // fix should be applied
+    //             let fix = Shield::new(pos, palette.snake, true, 0.4)
+    //                 .push_side(n1)
+    //                 .push_side(n2);
 
-                // renderer.push(fix);
-            }
-        }
-    }
+    //             // renderer.push(fix);
+    //         }
+    //     }
+    // }
 
     // pub fn swoop(snake: &mut EntityView) {
     //     // the swoop should spawn ahead of the head
@@ -366,7 +376,7 @@ pub mod snake {
                 neighbors.push(entity.get_direction().reverse());
             };
 
-            draw_shield(pd, &neighbors, renderer, palette);
+            // draw_shield(pd, &neighbors, renderer, palette);
         } else if entity.get_self_destruct() == 1 {
             // tail
             let pct = entity.access_timer(|t| t.progress());
@@ -378,7 +388,7 @@ pub mod snake {
                 col: palette.snake,
             });
 
-            draw_shield(pd, &[direction], renderer, palette);
+            // draw_shield(pd, &[direction], renderer, palette);
             // renderer.push(
             //     Shield::new(pd.into(), palette.snake, 0.4)
             //         .push_side(back.into())
@@ -397,7 +407,7 @@ pub mod snake {
             //         .push_side(entity.get_direction().right().reverse().into()),
             // );
             entity.with_property("neighbors", |neighbors: &Vec<Direction>| {
-                draw_shield(pos, neighbors, renderer, palette);
+                // draw_shield(pos, neighbors, renderer, palette);
             });
             pos.z = -0.1 * entity.get_self_destruct() as f32;
         }
@@ -465,10 +475,11 @@ pub mod fruit {
     pub fn bounded(man: &mut EntityManager, pos: Vec2, dim: Vec2, respawns: i32) -> EntityId {
         let id = self::put_at(man, pos);
 
-        let fruit = man.view(id).unwrap();
+        let mut fruit = man.view(id).unwrap();
         fruit.new_property("respawns", respawns);
         fruit.new_property("bound.pos", pos);
         fruit.new_property("bound.dim", dim);
+        fruit.set_position((pos, 0.0).into());
 
         id
     }
@@ -857,11 +868,11 @@ pub mod logic {
 }
 
 pub mod enemy {
-    use std::time::Duration;
+    use std::{sync::mpsc::{self, Receiver, Sender}, time::Duration};
 
-    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Mat4, Vec2, Vec4}, palette::Palette, render::{instanced::Tile, RenderManager}};
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Mat4, Vec2, Vec4}, palette::Palette, render::{instanced::Tile, shield::Shield, RenderManager}};
 
-    fn new(man: &mut EntityManager, position: Vec2) -> EntityId {
+    pub fn new(man: &mut EntityManager, position: Vec2, hp: i32) -> EntityId {
         let id = man.spawn(Entities::Enemy, &[
             Components::Position,
             Components::Collider,
@@ -871,8 +882,37 @@ pub mod enemy {
         let mut this = man.view(id).unwrap();
         this.set_position((position, 0.0).into());
         this.new_property("is_shielded", false);
+        this.new_property("max_hp", hp);
+        this.new_property("hp", hp);
         
         id
+    }
+
+    pub fn tut_enemy(man: &mut EntityManager, position: Vec2) -> EntityId {
+        self::new(man, position, 1)
+    }
+
+    pub fn shield_enemy(man: &mut EntityManager, position: Vec2) -> EntityId {
+        self::new(man, position, 2)
+    }
+
+    pub fn make_kill_trigger(man: &mut EntityManager, id: EntityId) -> Receiver<()> {
+        let this = man.view(id).unwrap();
+        let (tx, rx) = mpsc::channel();
+        this.new_property("kill_tx", tx);
+        rx
+    }
+
+    pub fn hit(this: &mut EntityView) {
+        let hp: i32 = this.get_property("hp");
+        if hp == 1 {
+            this.kill();
+            if this.has_property("kill_tx") {
+                let _ = this.with_property("kill_tx", |t: &Sender<()>| t.send(()));
+            }
+        } else {
+            this.set_property("hp", hp - 1);
+        }
     }
 
     pub fn tick(dt: Duration, this: &mut EntityView) {
@@ -880,11 +920,24 @@ pub mod enemy {
     }
 
     pub fn draw(this: EntityView, renderer: &mut RenderManager, palette: Palette) {
+        let pos = this.get_position();
         let body = Tile {
-            transform: Mat4::translate(this.get_position()),
+            transform: Mat4::translate(pos),
             col: palette.enemy,
         };
         renderer.push(body);
+
+        let hp = this.get_property::<i32>("hp");
+        if hp > 1 {
+            let hp = hp as f32;
+            let max_hp = this.get_property::<i32>("max_hp") as f32;
+            let shield_power = (hp - 1.0) / (max_hp - 1.0);
+            let col = Vec4::from((palette.enemy, shield_power));
+            let shield = Shield::new(pos.into(), col, false, 0.4)
+                .push_quad();
+
+            renderer.push(shield);
+        }
     }
 }
 

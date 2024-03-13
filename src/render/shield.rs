@@ -3,7 +3,7 @@ use std::mem::{offset_of, size_of};
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Vec2, Vec3},
+    math::{Vec2, Vec4},
     resources,
 };
 
@@ -12,7 +12,7 @@ use super::VaoHelper;
 #[repr(C)]
 pub struct Shield {
     pos: Vec2,
-    col: Vec3,
+    col: Vec4,
     radius: f32,
     is_fix: u8,
     num_sides: u8,
@@ -23,7 +23,7 @@ pub struct Shield {
 }
 
 impl Shield {
-    pub fn new(pos: Vec2, col: Vec3, is_fix: bool, radius: f32) -> Self {
+    pub fn new(pos: Vec2, col: Vec4, is_fix: bool, radius: f32) -> Self {
         Self {
             pos,
             col,
@@ -48,6 +48,14 @@ impl Shield {
 
         self.num_sides += 1;
         self
+    }
+
+    pub fn push_quad(self) -> Self {
+        self
+            .push_side(Vec2::UP)
+            .push_side(Vec2::DOWN)
+            .push_side(Vec2::LEFT)
+            .push_side(Vec2::RIGHT)
     }
 }
 
@@ -82,7 +90,7 @@ impl<'a> ShieldManager<'a> {
                 offset_of!(Shield, pos),
             )
             .push_attrib(
-                3,
+                4,
                 gl::raw::FLOAT,
                 gl::raw::FALSE,
                 size_of::<Shield>(),

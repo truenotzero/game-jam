@@ -4,7 +4,7 @@
 #define MASK_INTENSITY 8.0
 
 in vec2 uv;
-flat in vec3 shieldCol;
+flat in vec4 shieldCol;
 flat in int isFix;
 flat in int numSides;
 flat in vec2 sides[4];
@@ -48,7 +48,7 @@ float make_fix() {
 void main() {
     if (isFix == 0) {
         float shield = make_shield();
-        fragColor = vec4(shieldCol, shield);
+        fragColor = vec4(shieldCol.rgb, shield);
     } else {
         float fix = make_fix();
         if (abs(fix) < 0.001) {
@@ -56,7 +56,9 @@ void main() {
         } else {
             gl_FragDepth = -0.95;
         }
-        fragColor = vec4(shieldCol, fix);
+        fragColor = vec4(shieldCol.rgb, fix);
     }
+
+    fragColor.a *= shieldCol.a;
 
 }

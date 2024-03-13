@@ -7,14 +7,14 @@ layout (std140, binding = 0) uniform Common {
 layout (points) in;
 layout (triangle_strip, max_vertices = 4) out;
 
-in vec3 vshieldCol[1];
+in vec4 vshieldCol[1];
 in float vradius[1];
 in int visFix[1];
 in int vnumSides[1];
 in vec2 vsides[1][4];
 
 out vec2 uv;
-flat out vec3 shieldCol;
+flat out vec4 shieldCol;
 flat out int isFix;
 flat out int numSides;
 flat out vec2 sides[4];
