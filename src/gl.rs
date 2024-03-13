@@ -408,16 +408,8 @@ impl<'a, const T: raw::GLenum> Texture<'a, T> {
 
         let this = Self(GlObject { id, _ctx: ctx });
         this.apply();
-        call!(TexParameteri(
-            this.type_(),
-            TEXTURE_MIN_FILTER,
-            LINEAR as _
-        ));
-        call!(TexParameteri(
-            this.type_(),
-            TEXTURE_MAG_FILTER,
-            LINEAR as _
-        ));
+        call!(TexParameteri(this.type_(), TEXTURE_MIN_FILTER, LINEAR as _));
+        call!(TexParameteri(this.type_(), TEXTURE_MAG_FILTER, LINEAR as _));
 
         this
     }

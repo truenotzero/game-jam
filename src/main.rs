@@ -184,14 +184,14 @@ impl<'a> Game<'a> {
             // prepare next room
             // it's okay to reset open_hall_trigger here
             // since if it must be that the hall is already open
-            let (mut next_room, next_trigger) = world::next_room(&mut self.room_ctr)(&mut self.man, &self.room);
+            let (mut next_room, next_trigger) =
+                world::next_room(&mut self.room_ctr)(&mut self.man, &self.room);
             self.open_hall_trigger = next_trigger;
             next_room.take_last_hall(&mut self.room);
 
             // swap rooms
             swap(&mut next_room, &mut self.room);
             self.last_room = Some(next_room);
-
         }
 
         // hall leave trigger
@@ -248,7 +248,7 @@ impl<'a> Game<'a> {
         let in_view = self.current_view.inverse();
         let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(ndc_x, ndc_y, 0.0));
 
-        // 
+        //
         let pos = Vec2::new(x, -y) + self.room.position();
         let _ = self.mouse_tx.send(pos);
     }

@@ -349,6 +349,14 @@ impl<'m> EntityView<'m> {
         self.storage().get_property(self.id, name).is_some()
     }
 
+    pub fn get_property<T: Clone + 'static>(&self, name: &str) -> T {
+        self.with_property::<T, T>(name, |f| f.clone())
+    }
+
+    pub fn set_property<T: 'static>(&self, name: &str, value: T) {
+        self.with_mut_property(name, |f| *f = value);
+    }
+
     pub fn with_property<P: 'static, R>(&self, name: &str, f: impl FnOnce(&P) -> R) -> R {
         let prop = self
             .storage()

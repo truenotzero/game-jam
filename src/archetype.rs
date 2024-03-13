@@ -80,6 +80,7 @@ pub mod snake {
     };
 
     const STEP: Duration = Duration::from_millis(150);
+    const POWER_LEVELUP: i32 = 3;
     // const STEP: Duration = Duration::from_millis(1500);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
@@ -193,19 +194,34 @@ pub mod snake {
                     K::A | K::Left => Direction::Left,
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
-                    K::F => {
-                        self::swoop(snake);
-                        continue;
-                    }
+                    // K::Q => {
+                    //     snake.request_spawn(Box::new(move |man| {
+                    //         super::swoop::weak_swoop(man, pos, last_dir);
+                    //     }));
+                    //     continue;
+                    // },
+                    // K::E => {
+                    //     snake.request_spawn(Box::new(move |man| {
+                    //         super::swoop::strong_swoop(man, pos, last_dir);
+                    //     }));
+                    //     continue;
+                    // },
                     K::Space => {
+                        let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
-                            fireball::new(
-                                man,
-                                palette::PaletteKey::Snake,
-                                0.5,
-                                pos,
-                                Vec3::from((mouse, 0.0)),
-                            );
+                            match power {
+                                0 => super::swoop::weak_swoop(man, pos, last_dir),
+                                1 => super::swoop::strong_swoop(man, pos, last_dir),
+                                // _ => super::fireball::new(man, color, radius, position, target),
+                                _ => panic!()
+                            };
+                            // fireball::new(
+                            //     man,
+                            //     palette::PaletteKey::Snake,
+                            //     0.5,
+                            //     pos,
+                            //     Vec3::from((mouse, 0.0)),
+                            // );
                         }));
                         continue;
                     }
@@ -270,19 +286,19 @@ pub mod snake {
         }
     }
 
-    pub fn swoop(snake: &mut EntityView) {
-        // the swoop should spawn ahead of the head
-        let snake_pos = snake.get_position();
-        let snake_dir = snake.get_direction();
-        let offset = 0.75;
-        let swoop_pos = snake_pos + offset * Vec3::from(snake_dir);
+    // pub fn swoop(snake: &mut EntityView) {
+    //     // the swoop should spawn ahead of the head
+    //     let snake_pos = snake.get_position();
+    //     let snake_dir = snake.get_direction();
+    //     let offset = 0.75;
+    //     let swoop_pos = snake_pos + offset * Vec3::from(snake_dir);
 
-        let speed = 2.5;
-        let scale = 1.0;
-        snake.request_spawn(Box::new(move |man| {
-            swoop::new(man, swoop_pos, snake_dir, speed, scale);
-        }));
-    }
+    //     let speed = 2.5;
+    //     let scale = 1.0;
+    //     snake.request_spawn(Box::new(move |man| {
+    //         swoop::new(man, swoop_pos, snake_dir, speed, scale);
+    //     }));
+    // }
 
     pub fn draw(mut entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
         let mut pos = entity.get_position();
@@ -578,12 +594,18 @@ pub mod swoop {
 
     use crate::{
         entity::{Components, Direction, Entities, EntityId, EntityManager, EntityView},
-        math::Vec3,
+        math::{ease, Vec3},
         render::{self, RenderManager},
         sound::Sounds,
     };
 
-    pub fn new(
+    // speed in tiles per second
+    const SWOOP_SPEED: f32 = 12.0;
+    const SWOOP_LIFETIME: Duration = Duration::from_millis(500);
+    const STARTING_SCALE: f32 = 1.0;
+    const STRONG: f32 = 1.5;
+
+    fn new(
         man: &mut EntityManager,
         spawn_pos: Vec3,
         direction: Direction,
@@ -598,21 +620,45 @@ pub mod swoop {
                 Components::Collider,
                 Components::Speed,
                 Components::Scale,
+                Components::Timer,
+                Components::Properties,
             ],
         );
 
         let mut swoop = man.view(id).unwrap();
-        swoop.set_position(spawn_pos);
+        swoop.set_position(spawn_pos + direction.into());
         swoop.set_direction(direction);
         swoop.set_speed(speed);
         swoop.set_scale((scale).into());
+        swoop.access_timer(|t| t.set_threshold(self::SWOOP_LIFETIME));
+        swoop.new_property("alpha", 1.0f32);
+        swoop.new_property("starting_scale", scale);
 
         super::oneshot::play_sound(man, Sounds::Swoop);
 
         id
     }
 
+    pub fn weak_swoop(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
+        self::new(man, spawn_pos, direction, self::SWOOP_SPEED, self::STARTING_SCALE)
+    }
+
+    pub fn strong_swoop(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
+        self::new(man, spawn_pos, direction, self::SWOOP_SPEED * self::STRONG, self::STARTING_SCALE * self::STRONG)
+    }
+    
+
     pub fn tick(dt: Duration, this: &mut EntityView) {
+        if this.access_timer(|t| t.tick(dt)) {
+            this.kill();
+            return;
+        }
+
+        let pct = this.access_timer(|t| t.progress());
+        this.set_property("alpha", 1.0 - ease::out_quad(pct));
+        let starting_scale = this.get_property::<f32>("starting_scale");
+        this.set_scale((starting_scale * (1.0 - ease::in_back(pct))).into());
+
         let pos = this.get_position();
         let d = dt.as_secs_f32() * this.get_speed() * Vec3::from(this.get_direction());
         this.set_position(pos + d);
@@ -622,7 +668,8 @@ pub mod swoop {
         let pos = this.get_position().into();
         let scale = this.get_scale().x;
         let direction = this.get_direction();
-        renderer.push(render::swoop::Swoop::new(pos, scale, direction));
+        let alpha = this.get_property("alpha");
+        renderer.push(render::swoop::Swoop::new(pos, scale, direction, alpha));
     }
 }
 

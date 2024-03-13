@@ -1,10 +1,13 @@
-use std::{collections::HashMap, mem::{offset_of, size_of}};
-
+use std::{
+    collections::HashMap,
+    mem::{offset_of, size_of},
+};
 
 use crate::{
     common::{as_bytes, AsBytes, Error, Result},
     gl::{self, ArrayBuffer, DrawContext, Shader, Texture2D, Uniform, Vao},
-    math::{Mat4, Vec2, Vec3}, resources::{self, Texture},
+    math::{Mat4, Vec2, Vec3},
+    resources::{self, Texture},
 };
 
 use super::VaoHelper;
@@ -149,14 +152,20 @@ impl Text {
         }
     }
 
-    pub fn place_at(name: TextNames, position: Vec2, dimensions: Vec2, scale: f32, frame: usize) -> Self {
+    pub fn place_at(
+        name: TextNames,
+        position: Vec2,
+        dimensions: Vec2,
+        scale: f32,
+        frame: usize,
+    ) -> Self {
         let frames = name.frames();
-        let adjust = if frames > 1{
+        let adjust = if frames > 1 {
             let frame_adjust = 1.0 / frames as f32;
             let whitespace_adjust = LINE_SEPARATOR_HEIGHT / LETTER_SIZE;
 
             Mat4::scale(Vec2::new(1.0, frame_adjust * whitespace_adjust))
-            * Mat4::translate(Vec3::new(LETTER_GAP_WIDTH, -LINE_SEPARATOR_HEIGHT, 0.0))
+                * Mat4::translate(Vec3::new(LETTER_GAP_WIDTH, -LINE_SEPARATOR_HEIGHT, 0.0))
             // Mat4::default()
         } else {
             Mat4::default()
@@ -166,10 +175,9 @@ impl Text {
             .transform(Mat4::scale(dimensions))
             .transform(adjust)
             .transform(Mat4::scale(scale.into()))
-            .transform(Mat4::translate((position, 0.0).into()))
-        ;
-    
-        out        
+            .transform(Mat4::translate((position, 0.0).into()));
+
+        out
     }
 
     fn transform(mut self, t: Mat4) -> Self {
@@ -185,7 +193,7 @@ pub struct TextManager<'a> {
     vao: Vao<'a>,
     vbo: ArrayBuffer<'a>,
     shader: Shader<'a>,
-    
+
     textures: HashMap<TextNames, Texture2D<'a>>,
 
     texts: Vec<Text>,
@@ -194,7 +202,10 @@ pub struct TextManager<'a> {
 impl<'a> TextManager<'a> {
     pub fn new(ctx: &'a DrawContext) -> Self {
         let vbo = ArrayBuffer::new(ctx);
-        vbo.reserve(size_of::<Vertex>() * VERTICES_PER_SHAPE, gl::buffer_flags::DYNAMIC_STORAGE);
+        vbo.reserve(
+            size_of::<Vertex>() * VERTICES_PER_SHAPE,
+            gl::buffer_flags::DYNAMIC_STORAGE,
+        );
 
         let vao = VaoHelper::new(ctx)
             .bind_buffer(&vbo)
@@ -217,8 +228,7 @@ impl<'a> TextManager<'a> {
         Self {
             vao,
             vbo,
-            shader: Shader::from_resource(ctx, resources::shaders::TEXT)
-                .expect("bad text shader"),
+            shader: Shader::from_resource(ctx, resources::shaders::TEXT).expect("bad text shader"),
 
             textures: Self::load_textures(ctx),
 
@@ -231,7 +241,7 @@ impl<'a> TextManager<'a> {
         for text_name_id in 0..(TextNames::_NumTexts as u8) {
             // don't forget to add new text names to the conversion table in try_from
             let text_name = TextNames::try_from(text_name_id).unwrap();
-            
+
             let image = image::load_from_memory(text_name.resource()).unwrap();
             let image = image.flipv();
 
@@ -240,8 +250,16 @@ impl<'a> TextManager<'a> {
             let height = text_name.dimensions().y as _;
             texture.apply();
             // effectively clamp to a transparent background
-            gl::call!(TexParameteri(texture.type_(), TEXTURE_WRAP_S, CLAMP_TO_BORDER as _));
-            gl::call!(TexParameteri(texture.type_(), TEXTURE_WRAP_T, CLAMP_TO_BORDER as _));
+            gl::call!(TexParameteri(
+                texture.type_(),
+                TEXTURE_WRAP_S,
+                CLAMP_TO_BORDER as _
+            ));
+            gl::call!(TexParameteri(
+                texture.type_(),
+                TEXTURE_WRAP_T,
+                CLAMP_TO_BORDER as _
+            ));
             gl::call!(TexParameteri(
                 texture.type_(),
                 TEXTURE_MIN_FILTER,
@@ -252,7 +270,17 @@ impl<'a> TextManager<'a> {
                 TEXTURE_MAG_FILTER,
                 LINEAR as _
             ));
-            gl::call!(TexImage2D(texture.type_(), 0, RGBA as _, width, height, 0, RGBA, UNSIGNED_BYTE, image.as_bytes().as_ptr().cast()));
+            gl::call!(TexImage2D(
+                texture.type_(),
+                0,
+                RGBA as _,
+                width,
+                height,
+                0,
+                RGBA,
+                UNSIGNED_BYTE,
+                image.as_bytes().as_ptr().cast()
+            ));
 
             // push to hashmap
             ret.insert(text_name, texture);
@@ -265,7 +293,7 @@ impl<'a> TextManager<'a> {
         self.texts.push(text);
     }
 
-    const BINDING_TEXT: usize = 0 ;
+    const BINDING_TEXT: usize = 0;
     const UNIFORM_CURRENT_FRAME: i32 = 0;
     const UNIFORM_TOTAL_FRAMES: i32 = 1;
 
@@ -278,7 +306,7 @@ impl<'a> TextManager<'a> {
                 let bytes = unsafe { v.as_bytes() };
                 self.vbo.update(i * size_of::<Vertex>(), bytes);
             }
-            
+
             self.textures[&text.name].bind(Self::BINDING_TEXT);
             (text.frame as f32).uniform(Self::UNIFORM_CURRENT_FRAME);
             (text.name.frames() as f32).uniform(Self::UNIFORM_TOTAL_FRAMES);

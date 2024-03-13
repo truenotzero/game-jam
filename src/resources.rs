@@ -21,20 +21,20 @@ pub mod textures {
 
     pub const ICON: Texture = load!("textures/favicon.ico");
 
-pub mod text {
-    use super::Texture;
+    pub mod text {
+        use super::Texture;
 
-    pub const SNEK: Texture = load!("textures/text/snek.png");
-    pub const SNEK_GLITCH: Texture = load!("textures/text/snek-glitch.png");
-    pub const CONTROLS: Texture = load!("textures/text/controls.png");
-    pub const FRUIT: Texture = load!("textures/text/fruit.png");
-    pub const FRUIT_GLITCH: Texture = load!("textures/text/fruit-glitch.png");
-    pub const FRUIT_GLITCH_VARIANT: Texture = load!("textures/text/fruit-glitch-variant.png");
-    pub const ATTACK: Texture = load!("textures/text/attack.png");
-    pub const ATTACK_GLITCH: Texture = load!("textures/text/attack-glitch.png");
-    pub const EMPOWER: Texture = load!("textures/text/empower.png");
-    pub const EMPOWER_GLITCH: Texture = load!("textures/text/empower-glitch.png");
-}
+        pub const SNEK: Texture = load!("textures/text/snek.png");
+        pub const SNEK_GLITCH: Texture = load!("textures/text/snek-glitch.png");
+        pub const CONTROLS: Texture = load!("textures/text/controls.png");
+        pub const FRUIT: Texture = load!("textures/text/fruit.png");
+        pub const FRUIT_GLITCH: Texture = load!("textures/text/fruit-glitch.png");
+        pub const FRUIT_GLITCH_VARIANT: Texture = load!("textures/text/fruit-glitch-variant.png");
+        pub const ATTACK: Texture = load!("textures/text/attack.png");
+        pub const ATTACK_GLITCH: Texture = load!("textures/text/attack-glitch.png");
+        pub const EMPOWER: Texture = load!("textures/text/empower.png");
+        pub const EMPOWER_GLITCH: Texture = load!("textures/text/empower-glitch.png");
+    }
 }
 
 // SOUNDS //

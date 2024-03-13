@@ -5,6 +5,7 @@
 #define SWOOP_SHARPEN 1.25
 
 in vec2 uv;
+in float alpha;
 
 out vec4 fragColor;
 
@@ -36,4 +37,5 @@ float swoop(vec2 uv, float s, float r) {
 void main() {
     float s = swoop(2.0 * uv - 1.0, SWOOP_BLUR, SWOOP_SHARPEN);
     fragColor = vec4(SWOOP_COLOR, s);
+    fragColor.a *= alpha;
 }

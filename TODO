@@ -3,10 +3,10 @@ Content:
 - Enemies:
     - [ ] Static enemy (turret)
     - [ ] Mobile enemy
-- [ ] Powerup system
-    - [x] Slash animation
-        - [ ] Slash attack (basic)
-        - [ ] Slash attack (upgrade)
+- [x] Powerup system
+    - [x] Swoop animation
+        - [x] swoop attack (basic)
+        - [x] Swoop attack (upgrade)
     - [x] Fireball animation
         - [ ] Fireball attack (basic)
         - [ ] Fireball attack (upgrade)

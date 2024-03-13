@@ -247,7 +247,6 @@ impl<'a> RenderManager<'a> {
 
             self.renderers.get_mut(&RenderType::Tile).map(|r| r.draw());
 
-
             self.renderers.get_mut(&RenderType::Text).map(|r| r.draw());
             self.renderers.get_mut(&RenderType::Swoop).map(|r| r.draw());
             self.renderers
@@ -256,7 +255,6 @@ impl<'a> RenderManager<'a> {
             self.renderers
                 .get_mut(&RenderType::Shield)
                 .map(|r| r.draw());
-
         });
 
         // render the texture onto the monitor

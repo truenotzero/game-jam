@@ -1,8 +1,12 @@
-use std::mem::{offset_of, size_of};
+use std:: mem::{offset_of, size_of};
 
 use crate::{
     common::{as_bytes, AsBytes},
-    gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
+    gl::{
+        self,
+        raw::{FALSE, FLOAT},
+        ArrayBuffer, DrawContext, Shader, Vao,
+    },
     math::{Mat4, Vec2, Vec3, Vec4},
     resources,
 };
@@ -14,6 +18,7 @@ use super::VaoHelper;
 struct Vertex {
     pos: Vec2,
     uv: Vec2,
+    alpha: f32,
 }
 
 as_bytes!(Vertex);
@@ -23,24 +28,28 @@ pub struct Swoop {
     vertices: [Vertex; 6],
 }
 
-impl Default for Swoop {
-    fn default() -> Swoop {
+impl Swoop {
+    fn base(alpha: f32) -> Self {
         let corners = [
             Vertex {
                 pos: Vec2::new(-0.5, 0.5),
                 uv: Vec2::new(0.0, 1.0),
+                alpha,
             },
             Vertex {
                 pos: Vec2::new(-0.5, -0.5),
                 uv: Vec2::new(0.0, 0.0),
+                alpha,
             },
             Vertex {
                 pos: Vec2::new(0.5, 0.5),
                 uv: Vec2::new(1.0, 1.0),
+                alpha,
             },
             Vertex {
                 pos: Vec2::new(0.5, -0.5),
                 uv: Vec2::new(1.0, 0.0),
+                alpha,
             },
         ];
 
@@ -50,17 +59,15 @@ impl Default for Swoop {
             ],
         }
     }
-}
 
-impl Swoop {
-    pub fn new<D: Into<Vec2>>(pos: Vec2, scale: f32, direction: D) -> Self {
-        Self::default()
+    pub fn new<D: Into<Vec2>>(pos: Vec2, scale: f32, direction: D, alpha: f32) -> Self {
+        Self::base(alpha)
             .transform(Mat4::rotate(Into::<Vec2>::into(direction).angle()))
             .transform(Mat4::scale(scale.into()))
             .transform(Mat4::translate((pos, 0.0).into()))
     }
 
-    pub fn transform(mut self, t: Mat4) -> Self {
+    fn transform(mut self, t: Mat4) -> Self {
         for v in &mut self.vertices {
             v.pos = t * v.pos;
         }
@@ -99,6 +106,13 @@ impl<'a> SwoopManager<'a> {
                 gl::raw::FALSE,
                 size_of::<Vertex>(),
                 offset_of!(Vertex, uv),
+            )
+            .push_attrib(
+                1,
+                FLOAT,
+                FALSE,
+                size_of::<Vertex>(),
+                offset_of!(Vertex, alpha),
             )
             .build();
 

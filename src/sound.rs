@@ -65,7 +65,7 @@ impl Sounds {
         let mut rng = thread_rng();
         let first_glitch = Self::Glitch0;
         let last_glitch = Self::Glitch5;
-        let glitch = rng.gen_range(first_glitch as u8 ..= last_glitch as u8);
+        let glitch = rng.gen_range(first_glitch as u8..=last_glitch as u8);
         Self::try_from(glitch).unwrap()
     }
 }

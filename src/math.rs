@@ -752,7 +752,7 @@ pub mod ease {
         1.0 + c3 * p * p * p + c1 * p * p
     }
 
-    pub fn _in_back(p: f32) -> f32 {
+    pub fn in_back(p: f32) -> f32 {
         let c1 = 1.70158;
         let c3 = c1 + 1.0;
 
@@ -765,5 +765,10 @@ pub mod ease {
 
     pub fn out_expo(p: f32) -> f32 {
         1.0 - 2.0f32.powf(-10.0 * p)
+    }
+
+    pub fn out_quad(p: f32) -> f32 {
+        let ip = 1.0 - p;
+        1.0 - ip * ip
     }
 }
