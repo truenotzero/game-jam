@@ -207,7 +207,7 @@ pub mod snake {
         let pos = snake.get_position();
         let last_dir = snake.get_direction();
         let len = snake.get_body_length();
-        let mouse = snake.get_mouse();
+        let mouse = (snake.get_mouse(), 0.0).into();
 
         let dir = loop {
             if let Some(k) = snake.get_key() {
@@ -217,18 +217,18 @@ pub mod snake {
                     K::A | K::Left => Direction::Left,
                     K::S | K::Down => Direction::Down,
                     K::D | K::Right => Direction::Right,
-                    // K::Q => {
-                    //     snake.request_spawn(Box::new(move |man| {
-                    //         super::swoop::weak_swoop(man, pos, last_dir);
-                    //     }));
-                    //     continue;
-                    // },
-                    // K::E => {
-                    //     snake.request_spawn(Box::new(move |man| {
-                    //         super::swoop::strong_swoop(man, pos, last_dir);
-                    //     }));
-                    //     continue;
-                    // },
+                    K::Q => {
+                        snake.request_spawn(Box::new(move |man| {
+                                super::fireball::weak_attack(man, pos, mouse);
+                        }));
+                        continue;
+                    },
+                    K::E => {
+                        snake.request_spawn(Box::new(move |man| {
+                                super::fireball::strong_attack(man, pos, mouse);
+                        }));
+                        continue;
+                    },
                     K::Space => {
                         // if !snake.get_property::<bool>("can_attack") { continue; }
 
@@ -236,14 +236,13 @@ pub mod snake {
                             let _ = snake.with_property("attack_tx", |t: &Sender<()>| t.send(()));
                         }
 
-                        println!("snake pos: {pos:?}");
-                        println!("mouse pos: {mouse:?}");
+                        let pos = pos + last_dir.into();
                         let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
                             match power {
                                 // 0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
                                 // 2 => super::swoop::strong_attack(man, pos, last_dir),
-                                _ => super::fireball::new(man, PaletteKey::Snake, 0.5, pos, Vec3::from((mouse, 0.0))),
+                                _ => super::fireball::weak_attack(man, pos, mouse),
                                 // _ => panic!()
                             };
                             // fireball::new(
@@ -523,12 +522,12 @@ pub mod fireball {
             Color, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position,
         },
         math::Vec3,
-        palette::Palette,
+        palette::{Palette, PaletteKey},
         render::{fireball::Fireball, RenderManager},
         sound::Sounds,
     };
 
-    pub fn new(
+    fn new(
         man: &mut EntityManager,
         color: Color,
         radius: f32,
@@ -558,6 +557,17 @@ pub mod fireball {
         fireball.get_sound().play(Sounds::Fireball);
 
         id
+    }
+
+    const PLAYER_RADIUS: f32 = 0.45;
+    const STRONG: f32 = 1.75;
+
+    pub fn weak_attack(man: &mut EntityManager, position: Position, mouse_position: Position) -> EntityId {
+        self::new(man, PaletteKey::Snake, self::PLAYER_RADIUS, position, mouse_position)
+    }
+
+    pub fn strong_attack(man: &mut EntityManager, position: Position, mouse_position: Position) -> EntityId {
+        self::new(man, PaletteKey::Snake, self::STRONG * self::PLAYER_RADIUS, position, mouse_position)
     }
 
     pub fn tick(dt: Duration, entity: &mut EntityView) {
@@ -657,7 +667,7 @@ pub mod swoop {
         );
 
         let mut swoop = man.view(id).unwrap();
-        swoop.set_position(spawn_pos + direction.into());
+        swoop.set_position(spawn_pos);
         swoop.set_direction(direction);
         swoop.set_speed(speed);
         swoop.set_scale((scale).into());

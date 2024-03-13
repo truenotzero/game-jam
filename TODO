@@ -8,8 +8,10 @@ Content:
         - [x] swoop attack (basic)
         - [x] Swoop attack (upgrade)
     - [x] Fireball animation
-        - [ ] Fireball attack (basic)
-        - [ ] Fireball attack (upgrade)
+        - [x] Fireball attack (basic)
+        - [x] Fireball attack (upgrade)
+        - [ ] Fireball falloff (alpha/scale)
+    - [ ] Attack CD + CDR
 - [x] CRT shader
 - [x] Text renderer
 - [x] Glitch text renderer
