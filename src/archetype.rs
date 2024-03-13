@@ -519,9 +519,9 @@ pub mod fireball {
 
     use crate::{
         entity::{
-            Color, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position,
+            Color, Components, Direction, Entities, EntityId, EntityManager, EntityView, Position, Speed,
         },
-        math::Vec3,
+        math::{ease, Vec3, Vec4},
         palette::{Palette, PaletteKey},
         render::{fireball::Fireball, RenderManager},
         sound::Sounds,
@@ -533,6 +533,7 @@ pub mod fireball {
         radius: f32,
         position: Position,
         target: Position,
+        speed: Speed,
     ) -> EntityId {
         let id = man.spawn(
             Entities::Fireball,
@@ -544,6 +545,8 @@ pub mod fireball {
                 Components::Scale,
                 Components::Color,
                 Components::Sound,
+                Components::Timer,
+                Components::Properties,
             ],
         );
 
@@ -551,36 +554,56 @@ pub mod fireball {
         let mut fireball = man.view(id).unwrap();
         fireball.set_position(position);
         fireball.set_direction(Direction::Raw(direction.into()));
-        fireball.set_speed(15.0);
+        fireball.set_speed(speed);
         fireball.set_scale(radius.into());
         fireball.set_color(color);
         fireball.get_sound().play(Sounds::Fireball);
+        fireball.access_timer(|t| t.set_threshold(self::RAMP_TIME));
+        fireball.new_property("alpha", 0.0f32);
+        fireball.new_property("is_ramping", true);
 
         id
     }
 
+    const RAMP_TIME: Duration = Duration::from_millis(200);
+    const PLAYER_SPEED: Speed = 10.0;
     const PLAYER_RADIUS: f32 = 0.45;
     const STRONG: f32 = 1.75;
 
     pub fn weak_attack(man: &mut EntityManager, position: Position, mouse_position: Position) -> EntityId {
-        self::new(man, PaletteKey::Snake, self::PLAYER_RADIUS, position, mouse_position)
+        self::new(man, PaletteKey::Snake, self::PLAYER_RADIUS, position, mouse_position, self::PLAYER_SPEED)
     }
 
     pub fn strong_attack(man: &mut EntityManager, position: Position, mouse_position: Position) -> EntityId {
-        self::new(man, PaletteKey::Snake, self::STRONG * self::PLAYER_RADIUS, position, mouse_position)
+        self::new(man, PaletteKey::Snake, self::STRONG * self::PLAYER_RADIUS, position, mouse_position, self::STRONG * self::PLAYER_SPEED)
     }
 
-    pub fn tick(dt: Duration, entity: &mut EntityView) {
-        let pos = entity.get_position();
-        let dpos = dt.as_secs_f32() * entity.get_speed() * Vec3::from(entity.get_direction());
-        entity.set_position(pos + dpos);
+    pub fn tick(dt: Duration, this: &mut EntityView) {
+        if this.access_timer(|t| t.tick(dt)) {
+            this.set_property("is_ramping", false);
+        }
+
+        let pct = if this.get_property("is_ramping") {
+            this.access_timer(|t| t.progress())
+        } else {
+            1.0
+        };
+
+        let alpha = ease::in_expo(pct);
+        this.set_property("alpha", alpha);
+
+        let pos = this.get_position();
+        let dpos = dt.as_secs_f32() * this.get_speed() * Vec3::from(this.get_direction());
+        this.set_position(pos + dpos);
     }
 
-    pub fn draw(entity: EntityView, renderer: &mut RenderManager, palette: Palette) {
+    pub fn draw(this: EntityView, renderer: &mut RenderManager, palette: Palette) {
+        let alpha = this.get_property("alpha");
+        let col = Vec4::from((palette.get(this.get_color()), alpha));
         renderer.push(Fireball {
-            pos: entity.get_position().into(),
-            col: palette.get(entity.get_color()),
-            radius: entity.get_scale().x,
+            pos: this.get_position().into(),
+            col,
+            radius: this.get_scale().x,
         })
     }
 }

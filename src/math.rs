@@ -396,6 +396,12 @@ impl From<f32> for Vec4 {
     }
 }
 
+impl From<(Vec3, f32)> for Vec4 {
+    fn from(value: (Vec3, f32)) -> Self {
+        Vec4::new(value.0.x, value.0.y, value.0.z, value.1)
+    }
+}
+
 // pub struct Mat3 {
 //     pub xy: [[f32; 3]; 3],
 // }

@@ -245,13 +245,13 @@ impl<'a> Game<'a> {
 
         // world coords
         let in_view = self.current_view.invert_screem();
-        println!("view:\n{}", self.current_view);
-        println!("inverse:\n{}", in_view);
-        println!("unit?:\n{}", self.current_view * in_view);
+        // println!("view:\n{}", self.current_view);
+        // println!("inverse:\n{}", in_view);
+        // println!("unit?:\n{}", self.current_view * in_view);
         let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(ndc_x, ndc_y, 0.0));
 
         let pos = Vec2::new(x, y);
-        println!("mouse: {pos:?}");
+        // println!("mouse: {pos:?}");
         let _ = self.mouse_tx.send(pos);
     }
 }

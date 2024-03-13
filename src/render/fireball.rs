@@ -3,13 +3,13 @@ use std::mem::{offset_of, size_of};
 use crate::{
     common::{as_bytes, AsBytes},
     gl::{self, ArrayBuffer, DrawContext, Shader, Vao},
-    math::{Vec2, Vec3},
+    math::{Vec2, Vec4},
     resources,
 };
 
 pub struct Fireball {
     pub pos: Vec2,
-    pub col: Vec3,
+    pub col: Vec4,
     pub radius: f32,
 }
 
@@ -49,7 +49,7 @@ impl<'a> FireballManager<'a> {
         gl::call!(EnableVertexAttribArray(1));
         gl::call!(VertexAttribPointer(
             1,
-            3,
+            4,
             FLOAT,
             FALSE,
             size_of::<Fireball>() as _,

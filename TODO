@@ -1,5 +1,14 @@
+# Todo List
+
+Key:
+----
+- [ ] not done
+- [!] currently working on
+- [x] done
+- [-] scrapped
+
 Content:
-========
+--------
 - Enemies:
     - [ ] Static enemy (turret)
     - [ ] Mobile enemy
@@ -10,7 +19,8 @@ Content:
     - [x] Fireball animation
         - [x] Fireball attack (basic)
         - [x] Fireball attack (upgrade)
-        - [ ] Fireball falloff (alpha/scale)
+        - [x] Fireball alpha ramp
+        - [-] Fireball speedup
     - [ ] Attack CD + CDR
 - [x] CRT shader
 - [x] Text renderer
@@ -23,7 +33,7 @@ Content:
     - [ ] Goal
 
 Fixes:
-======
+------
 - [ ] Arbitrary sized triggers
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
@@ -32,5 +42,5 @@ Fixes:
 
 
 After the jam:
-==============
+--------------
 - [ ] Experiment with WASM+GLES2.0 port

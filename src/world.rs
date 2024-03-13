@@ -243,8 +243,8 @@ impl Room {
         new_parts.push(bg);
 
         // debug make tile at local 0.0
-        let middle = archetype::wall::new(man, Vec3::from((self.position, 0.0)));
-        new_parts.push(middle);
+        // let middle = archetype::wall::new(man, Vec3::from((self.position, 0.0)));
+        // new_parts.push(middle);
 
         let width = self.dimensions.x as usize;
         let height = self.dimensions.y as usize;

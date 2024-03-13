@@ -24,4 +24,5 @@ void main() {
 
     fragCol = fireCol * col;
     fragCol += (1.0 - smoothcircle(uv, 0.4 * radius, 0.3));
+    fragCol.a *= fireCol.a;
 }
