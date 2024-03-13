@@ -17,12 +17,14 @@ Content:
     - [x] Swoop animation
         - [x] swoop attack (basic)
         - [x] Swoop attack (upgrade)
+        - [x] Swoop collisions
     - [x] Fireball animation
         - [x] Fireball attack (basic)
         - [x] Fireball attack (upgrade)
         - [x] Fireball alpha ramp
         - [-] Fireball speedup
-    - [!] Attack CD + CDR
+        - [x] Fireball collisions
+    - [x] Attack CD + CDR
 - [x] CRT shader
 - [x] Text renderer
 - [x] Glitch text renderer
@@ -30,7 +32,8 @@ Content:
     - [x] Movement
     - [x] Fruit
     - [x] Attacks
-    - [ ] Enemies
+    - [x] Enemies
+    - [x] Shielded enemies
     - [ ] Goal
 - [ ] 'Insert Disk' startup sequence
 
@@ -39,8 +42,9 @@ Fixes:
 - [ ] Arbitrary sized triggers
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
-- [ ] Forcefield overlapping
+- [-] Forcefield overlapping
 - [x] Mouse-to-world coordinate converison
+- [x] Shooting while camera is lerping
 
 
 After the jam:

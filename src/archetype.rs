@@ -244,9 +244,9 @@ pub mod snake {
                     //     continue;
                     // },
                     K::Space => {
-                        if !snake.get_property::<bool>("can_attack") { continue; }
-                        if snake.with_property("attack_timer", |t: &Cooldown| t.is_cooling_down()) { continue; }
-                        snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.cool_down());
+                        // if !snake.get_property::<bool>("can_attack") { continue; }
+                        // if snake.with_property("attack_timer", |t: &Cooldown| t.is_cooling_down()) { continue; }
+                        // snake.with_mut_property("attack_timer", |t: &mut Cooldown| t.cool_down());
 
                         if snake.has_property("attack_tx") {
                             let _ = snake.with_property("attack_tx", |t: &Sender<()>| t.send(()));
@@ -256,9 +256,9 @@ pub mod snake {
                         let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
                             match power {
-                                0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
-                                2 => super::swoop::strong_attack(man, pos, last_dir),
-                                3 => super::fireball::weak_attack(man, pos, mouse),
+                                // 0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
+                                // 2 => super::swoop::strong_attack(man, pos, last_dir),
+                                0 => super::fireball::weak_attack(man, pos, mouse),
                                 e if e >= 4 => super::fireball::strong_attack(man, pos, mouse),
                                 _ => panic!(),
                             };
@@ -817,7 +817,7 @@ pub mod text {
 
         if !tick { return; }
         let glitching_enabled = this.with_property("glitching_enabled", |&b: &bool| b);
-        if !glitching_enabled { return; }
+            if !glitching_enabled { return; }
 
         if frame > 0 {
             // if animation is ongoing reset it
@@ -870,7 +870,9 @@ pub mod logic {
 pub mod enemy {
     use std::{sync::mpsc::{self, Receiver, Sender}, time::Duration};
 
-    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Mat4, Vec2, Vec4}, palette::Palette, render::{instanced::Tile, shield::Shield, RenderManager}};
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{self, ease, Mat4, Vec2, Vec4}, palette::Palette, render::{instanced::Tile, shield::Shield, RenderManager}, time::Cooldown};
+
+    const POWERDOWN_TIME: Duration = Duration::from_millis(500);
 
     pub fn new(man: &mut EntityManager, position: Vec2, hp: i32) -> EntityId {
         let id = man.spawn(Entities::Enemy, &[
@@ -881,14 +883,17 @@ pub mod enemy {
 
         let mut this = man.view(id).unwrap();
         this.set_position((position, 0.0).into());
-        this.new_property("is_shielded", false);
         this.new_property("max_hp", hp);
         this.new_property("hp", hp);
+        this.new_property("shield_power", 0.0f32);
+        this.new_property("shield_power_alpha", 0.0f32);
+        this.new_property("shield_powerdown_timer", Cooldown::new(self::POWERDOWN_TIME));
+        self::calculate_shield(&mut this);
         
         id
     }
 
-    pub fn tut_enemy(man: &mut EntityManager, position: Vec2) -> EntityId {
+    pub fn unshield_enemy(man: &mut EntityManager, position: Vec2) -> EntityId {
         self::new(man, position, 1)
     }
 
@@ -912,11 +917,28 @@ pub mod enemy {
             }
         } else {
             this.set_property("hp", hp - 1);
+            self::calculate_shield(this);
+            this.with_mut_property("shield_powerdown_timer", |t: &mut Cooldown| t.cool_down());
         }
     }
 
+    fn calculate_shield(this: &mut EntityView) {
+        let hp = this.get_property::<i32>("hp") as f32;
+        let max_hp = this.get_property::<i32>("max_hp") as f32;
+        let shield_power = (hp - 1.0) / (max_hp - 1.0);
+        this.set_property("shield_power", shield_power * 0.8);
+    }
+
     pub fn tick(dt: Duration, this: &mut EntityView) {
-        
+        let pct = this.with_mut_property("shield_powerdown_timer", |t: &mut Cooldown| {
+            t.tick(dt);
+            t.progress()
+        });
+
+        let shield: f32 = this.get_property("shield_power");
+        let delta = 1.0 - shield;
+        let alpha =  1.0 - delta * ease::in_expo(pct);
+        this.set_property("shield_power_alpha", alpha);
     }
 
     pub fn draw(this: EntityView, renderer: &mut RenderManager, palette: Palette) {
@@ -927,12 +949,9 @@ pub mod enemy {
         };
         renderer.push(body);
 
-        let hp = this.get_property::<i32>("hp");
-        if hp > 1 {
-            let hp = hp as f32;
-            let max_hp = this.get_property::<i32>("max_hp") as f32;
-            let shield_power = (hp - 1.0) / (max_hp - 1.0);
-            let col = Vec4::from((palette.enemy, shield_power));
+        let alpha = this.get_property("shield_power_alpha");
+        if alpha > math::EPSILON {
+            let col = Vec4::from((palette.enemy, alpha));
             let shield = Shield::new(pos.into(), col, false, 0.4)
                 .push_quad();
 

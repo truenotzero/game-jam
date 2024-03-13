@@ -57,6 +57,7 @@ struct Game<'a> {
     accum: Duration,
     next_view: Mat4,
     current_view: Mat4,
+    last_view: Mat4,
 
     last_room: Option<world::Room>,
     room: world::Room,
@@ -117,6 +118,7 @@ impl<'a> Game<'a> {
             accum: Duration::ZERO,
             current_view: room.view(),
             next_view: normal,
+            last_view: normal,
 
             last_room: None,
             room,
@@ -138,6 +140,7 @@ impl<'a> Game<'a> {
 
     fn move_camera(&mut self, new_view: Mat4) {
         self.next_view = new_view;
+        self.last_view = self.current_view;
         self.lerping = true;
         self.sound.play(Sounds::CameraPan);
     }
@@ -149,14 +152,14 @@ impl<'a> Game<'a> {
                 let pct = self.accum.as_secs_f32() / max.as_secs_f32();
                 // let p = self.bezier.apply(pct);
                 let p = ease::out_expo(pct);
-                let lerped_matrix = lerp(self.current_view, self.next_view, p);
+                self.current_view = lerp(self.last_view, self.next_view, p);
                 self.common_uniforms
-                    .update(0, unsafe { lerped_matrix.as_bytes() });
+                    .update(0, unsafe { self.current_view.as_bytes() });
                 self.accum += dt;
             } else {
                 self.lerping = false;
                 self.accum = Duration::ZERO;
-                mem::swap(&mut self.current_view, &mut self.next_view);
+                swap(&mut self.current_view, &mut self.next_view);
 
                 // now that the last room is out of view get rid of it
                 if let Some(mut room) = self.last_room.take() {

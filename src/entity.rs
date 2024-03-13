@@ -12,11 +12,7 @@ use glfw::Key;
 use rand::{thread_rng, Rng};
 
 use crate::{
-    math::{Vec2, Vec3},
-    palette::{Palette, PaletteKey},
-    render::RenderManager,
-    sound::Player,
-    time,
+    archetype::oneshot, math::{self, Vec2, Vec3}, palette::{Palette, PaletteKey}, render::RenderManager, sound::Player, time
 };
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,9 +222,19 @@ impl Collider {
         } else if let Some((head, _wall)) = Self::is_between(E::SnakeHead, E::Wall, e1, e2) {
             snake::die_sequence(head);
         } else if let Some((fireball, _wall)) = Self::is_between(E::Fireball, E::Wall, e1, e2) {
-            // TODO
             fireball.kill();
-        } else if let Some((trigger, other)) = Self::at_least(Entities::Trigger, e1, e2) {
+        } else if let Some((fireball, enemy)) = Self::is_between(E::Fireball, E::Enemy, e1, e2) {
+            fireball.kill();
+            enemy::hit(enemy);
+        } else if let Some((swoop, _wall)) = Self::is_between(E::Swoop, E::Wall, e1, e2) {
+            swoop.kill();
+        } else if let Some((swoop, enemy)) = Self::is_between(E::Swoop, E::Enemy, e1, e2) {
+            swoop.kill();
+            enemy::hit(enemy);
+        } else if let Some((snake, enemy)) = Self::is_between(E::SnakeHead, E::Enemy, e1, e2) {
+            snake::die_sequence(snake);
+        }
+        else if let Some((trigger, other)) = Self::at_least(Entities::Trigger, e1, e2) {
             trigger::activated(trigger, other);
         }
     }
@@ -622,12 +628,30 @@ impl Storages {
                 }
 
                 let self_pos = Vec2::from(position).floor();
+                // let self_scale = self.get_scale(entity).unwrap_or(Vec2::diagonal(1.0)) - Vec2::diagonal(math::EPSILON);
                 let other_pos = Vec2::from(other_pos).floor();
 
-                if self_pos.eq(other_pos) {
-                    // collision detected
-                    let _ = self.collisions.send((entity, other));
-                }
+                // let corners = [
+                //     self_pos,
+                //     self_pos + Vec2::new(self_scale.x, 0.0),
+                //     self_pos + Vec2::new(0.0, self_scale.y),
+                //     self_pos + self_scale,
+                // ];
+
+                // for corner in corners {
+                    // let corner = corner.floor();
+                    // print!("checking corner: {corner:?} - ");
+                    // if corner.eq(other_pos) {
+                    if self_pos.eq(other_pos) {
+                        // println!("pos: {self_pos:?}");
+                        let _ = self.collisions.send((entity, other));
+                        // println!("hit");
+                        // continue;
+                    }
+                    // println!("no hit");
+                // }
+                // println!();
+
             }
         }
         self.positions.insert(entity, position);

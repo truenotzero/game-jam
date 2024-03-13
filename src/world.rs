@@ -428,6 +428,19 @@ impl Room {
         ret
     }
 
+    pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
+        let next_pos = last.offset_from(last.hall_direction, last.dimensions);
+        let rand_side = loop {
+            let rand = Direction::random();
+            if rand != last.hall_direction.reverse() {
+                break rand;
+            }
+        };
+        let mut ret = Self::empty(man, next_pos, rand_side, dimensions, last.snake_id);
+        ret.break_wall(man, last.hall_direction.reverse(), last.hall_width, None);
+        ret
+    }
+
     pub fn tut_controls(man: &mut EntityManager) -> (Self, Receiver<()>) {
         let snek = snake::new(man);
         let mut ret = Self::empty(
@@ -543,49 +556,44 @@ impl Room {
     pub fn tut_enemy(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
         let enemy_pos = ret.random_position();
-        let enemy = enemy::shield_enemy(man, enemy_pos);
+        let enemy = enemy::unshield_enemy(man, enemy_pos);
         let rx = enemy::make_kill_trigger(man, enemy);
 
         let enemy_txt = ret.text_at(man, TextNames::Enemy, Vec2::new(-ret.dimensions.x / 10.0, ret.dimensions.y / 4.0), 1.0 / 28.0);
         let enemy_glitch_txt = ret.text_after(man, enemy_txt, TextNames::EnemyGlitch).unwrap();
-
-        text::enable_glitching(man, enemy_txt);
-        text::enable_glitching(man, enemy_glitch_txt);
+        
+        let glitch_trigger = snake::make_attack_trigger(man, ret.snake_id);
+        text::add_glitch_trigger(man, enemy_glitch_txt, glitch_trigger);
 
         (ret, rx)
     }
 
     pub fn tut_shield(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
         let mut ret = Self::next(man, last, Vec2::new(20.0, 20.0));
-        let enemy0 = enemy::shield_enemy(man, ret.random_position());
-        let enemy = enemy::shield_enemy(man, ret.random_position());
-        {
-            let mut venemy = man.view(enemy).unwrap();
-            enemy::hit(&mut venemy);
-        }
-
-        let enemy2 = enemy::new(man, ret.random_position(), 3);
-        {
-            let mut venemy = man.view(enemy2).unwrap();
-            enemy::hit(&mut venemy);
-        }
-
+        let enemy_pos = ret.random_position();
+        let enemy = enemy::new(man, enemy_pos, 3);
         let rx = enemy::make_kill_trigger(man, enemy);
+
+        let shield_glitch_txt = ret.text_at(man, TextNames::ShieldGlitch, Vec2::new(-ret.dimensions.x / 2.85, ret.dimensions.y / 4.0), 1.0 / 28.0);
+        ret.text_after(man, shield_glitch_txt, TextNames::Shield).unwrap();
+        
+        let glitch_trigger = snake::make_attack_trigger(man, ret.snake_id);
+        text::add_glitch_trigger(man, shield_glitch_txt, glitch_trigger);
+
         (ret, rx)
     }
 
-    pub fn next(man: &mut EntityManager, last: &Room, dimensions: Scale) -> Self {
-        let next_pos = last.offset_from(last.hall_direction, last.dimensions);
-        let rand_side = loop {
-            let rand = Direction::random();
-            if rand != last.hall_direction.reverse() {
-                break rand;
-            }
-        };
-        let mut ret = Self::empty(man, next_pos, rand_side, dimensions, last.snake_id);
-        ret.break_wall(man, last.hall_direction.reverse(), last.hall_width, None);
-        ret
+    pub fn room_procedural(man: &mut EntityManager, last: &Room) -> (Self, Receiver<()>) {
+        const ROOMS: [FnRoomGen; 0] = [
+
+        ];
+
+        let mut rng = thread_rng();
+        let i = rng.gen_range(0..ROOMS.len());
+        ROOMS[i](man, last)
     }
+
+    // fn lucky()
 
     // pub fn spires(man: &mut EntityManager) -> Self {
     //     let mut rng = thread_rng();
@@ -602,7 +610,7 @@ const ROOM_ORDER: [FnRoomGen; 1] = [
 ];
 
 pub fn next_room(current_room: &mut usize) -> FnRoomGen {
-    let i = ROOM_ORDER.len().min(*current_room);
+    let i = (ROOM_ORDER.len() - 1).min(*current_room);
     let ret = self::ROOM_ORDER[i];
     *current_room += 1;
     ret

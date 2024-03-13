@@ -69,4 +69,8 @@ impl Cooldown {
     pub fn cool_down(&mut self) {
         self.acc = self.cooldown;
     }
+
+    pub fn progress(&self) -> f32 {
+        1.0 - self.acc.as_secs_f32() / self.cooldown.as_secs_f32()
+    }
 }

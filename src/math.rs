@@ -10,7 +10,7 @@ fn f32_eq_tolerance(lhs: f32, rhs: f32, tolerance: f32) -> bool {
     -tolerance < delta && delta < tolerance
 }
 
-const EPSILON: f32 = 0.01;
+pub const EPSILON: f32 = 0.01;
 
 pub fn f32_eq(lhs: f32, rhs: f32) -> bool {
     f32_eq_tolerance(lhs, rhs, EPSILON)
