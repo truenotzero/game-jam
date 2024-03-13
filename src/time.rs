@@ -36,3 +36,30 @@ impl Threshold {
         self.acc.as_secs_f32() / self.threshold.as_secs_f32()
     }
 }
+
+#[derive(Default)]
+pub struct Cooldown {
+    acc: Duration,
+    cooldown: Duration,
+}
+
+impl Cooldown {
+    pub fn new(cooldown: Duration) -> Self {
+        let mut ret = Self::default();
+        ret.set_cooldown(cooldown);
+        ret
+    }
+
+    pub fn set_cooldown(&mut self, cooldown: Duration) {
+        self.cooldown = cooldown;
+    }
+
+    pub fn tick(&mut self, dt: Duration) -> bool {
+        self.acc = self.acc.saturating_sub(dt);
+        self.acc.is_zero()
+    }
+
+    pub fn reset(&mut self) {
+        self.acc = self.cooldown;
+    }
+}

@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{
-    f32::consts::PI,
-    ops::{Add, Index, IndexMut, Mul, Neg, Sub},
+    convert::identity, f32::consts::PI, ops::{Add, Index, IndexMut, Mul, Neg, Sub}
 };
 
 use crate::common::{as_bytes, Error, Result};
@@ -175,7 +174,7 @@ impl From<Vec3> for Vec2 {
 }
 
 #[repr(C)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -558,18 +557,13 @@ impl Mat4 {
     }
 
     /// Invert the matrix
-    /// Assumes that det(A) != 0
-    /// Also assumes that the matrix is upper-triangular
-    pub fn inverse(mut self) -> Self {
+    /// assumes it's a screen matrix
+    pub fn invert_screem(self) -> Self {
         let mut ret = Self::identity();
-
-        for e in (0..4).rev() {
-            let s = self[e][e];
-            self[e] = (1.0 / s) * self[e];
-            ret[e] = (1.0 / s) * ret[e];
-            for y in (0..e).rev() {
-                ret[e][y] -= s * self[e][y];
-            }
+        for e in 0..3 {
+            let s = 1.0 / self[e][e];
+            ret[e][e] *= s;
+            ret[3][e] -= s * self[3][e];
         }
 
         ret

@@ -74,14 +74,16 @@ pub mod snake {
             Position, SelfDestruct,
         },
         math::{f32_eq, Mat4, Vec2, Vec3},
-        palette::{self, Palette},
+        palette::{self, Palette, PaletteKey},
         render::{instanced::Tile, shield::Shield, RenderManager},
-        sound::Sounds,
+        sound::Sounds, time::{Cooldown, Threshold},
     };
 
     const STEP: Duration = Duration::from_millis(150);
     const POWER_LEVELUP: i32 = 3;
-    // const STEP: Duration = Duration::from_millis(1500);
+    const ATTACK_COOLDOWN: Duration = Duration::from_millis(3000);
+    const ATTACK_SPEED_CAP: Duration = Duration::from_millis(500);
+    const ATTACK_CDR_PER_POWER: Duration = Duration::from_millis(100);
 
     pub fn new(man: &mut EntityManager) -> EntityId {
         let id = man.spawn(
@@ -101,12 +103,14 @@ pub mod snake {
         );
 
         let mut snake = man.view(id).unwrap();
-        snake.set_position(Vec3::new(0.0, 0.0, 0.0));
+        snake.set_position(Vec3::new(1.0, 1.0, 0.0));
         snake.access_timer(|t| t.set_threshold(STEP));
 
         snake.new_property("score", 0);
         snake.new_property("smoothing", true);
         snake.new_property("shield", false);
+        snake.new_property("can_attack", false);
+        snake.new_property("attack_timer", Cooldown::new(self::ATTACK_COOLDOWN));
 
         id
     }
@@ -116,6 +120,18 @@ pub mod snake {
         let (tx, rx) = mpsc::channel();
         this.new_property("move_tx", tx);
         rx
+    }
+
+    pub fn make_attack_trigger(man: &mut EntityManager, id: EntityId) -> Receiver<()> {
+        let this = man.view(id).unwrap();
+        let (tx, rx) = mpsc::channel();
+        this.new_property("attack_tx", tx);
+        rx
+    }
+
+    pub fn add_attack_enable_trigger(man: &mut EntityManager, id: EntityId, trigger: Receiver<()>) {
+        let this = man.view(id).unwrap();
+        this.new_property("enable_attack_trigger", trigger);
     }
 
     fn body(
@@ -175,6 +191,13 @@ pub mod snake {
     }
 
     pub fn head_tick(dt: Duration, snake: &mut EntityView) {
+        if snake.has_property("enable_attack_trigger") {
+            if snake.with_property("enable_attack_trigger", |t: &Receiver<()>| t.try_recv().is_ok()) {
+                snake.set_property("can_attack", true);
+                snake.remove_property("enable_attack_trigger");
+            }
+        }
+
         if !snake.access_timer(|t| t.tick(dt)) {
             return;
         }
@@ -207,13 +230,21 @@ pub mod snake {
                     //     continue;
                     // },
                     K::Space => {
+                        // if !snake.get_property::<bool>("can_attack") { continue; }
+
+                        if snake.has_property("attack_tx") {
+                            let _ = snake.with_property("attack_tx", |t: &Sender<()>| t.send(()));
+                        }
+
+                        println!("snake pos: {pos:?}");
+                        println!("mouse pos: {mouse:?}");
                         let power = snake.get_property::<i32>("score") / self::POWER_LEVELUP;
                         snake.request_spawn(Box::new(move |man| {
                             match power {
-                                0 => super::swoop::weak_swoop(man, pos, last_dir),
-                                1 => super::swoop::strong_swoop(man, pos, last_dir),
-                                // _ => super::fireball::new(man, color, radius, position, target),
-                                _ => panic!()
+                                // 0 | 1 => super::swoop::weak_attack(man, pos, last_dir),
+                                // 2 => super::swoop::strong_attack(man, pos, last_dir),
+                                _ => super::fireball::new(man, PaletteKey::Snake, 0.5, pos, Vec3::from((mouse, 0.0))),
+                                // _ => panic!()
                             };
                             // fireball::new(
                             //     man,
@@ -639,11 +670,11 @@ pub mod swoop {
         id
     }
 
-    pub fn weak_swoop(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
+    pub fn weak_attack(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
         self::new(man, spawn_pos, direction, self::SWOOP_SPEED, self::STARTING_SCALE)
     }
 
-    pub fn strong_swoop(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
+    pub fn strong_attack(man: &mut EntityManager, spawn_pos: Vec3, direction: Direction) -> EntityId {
         self::new(man, spawn_pos, direction, self::SWOOP_SPEED * self::STRONG, self::STARTING_SCALE * self::STRONG)
     }
     
@@ -789,6 +820,38 @@ pub mod logic {
 
     pub fn tick(dt: Duration, this: &mut EntityView) {
         this.with_mut_property::<Box<dyn FnMut(Duration)>, _>("on_tick", |f| f(dt));
+    }
+}
+
+pub mod enemy {
+    use std::time::Duration;
+
+    use crate::{entity::{Components, Entities, EntityId, EntityManager, EntityView}, math::{Mat4, Vec2, Vec4}, palette::Palette, render::{instanced::Tile, RenderManager}};
+
+    fn new(man: &mut EntityManager, position: Vec2) -> EntityId {
+        let id = man.spawn(Entities::Enemy, &[
+            Components::Position,
+            Components::Collider,
+            Components::Properties,
+        ]);
+
+        let mut this = man.view(id).unwrap();
+        this.set_position((position, 0.0).into());
+        this.new_property("is_shielded", false);
+        
+        id
+    }
+
+    pub fn tick(dt: Duration, this: &mut EntityView) {
+        
+    }
+
+    pub fn draw(this: EntityView, renderer: &mut RenderManager, palette: Palette) {
+        let body = Tile {
+            transform: Mat4::translate(this.get_position()),
+            col: palette.enemy,
+        };
+        renderer.push(body);
     }
 }
 

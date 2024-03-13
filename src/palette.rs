@@ -18,6 +18,7 @@ pub struct Palette {
     pub wall: Vec3,
     pub background: Vec3,
     pub fruit: Vec3,
+    pub enemy: Vec3,
 }
 
 impl Palette {
@@ -55,6 +56,7 @@ pub fn _aperture() -> Palette {
         wall: light_blue,
         background: dark_blue,
         fruit: orange,
+        enemy: Vec3::new(1.0, 0.0, 0.0),
     }
     .srgb_to_linear()
 }
@@ -62,7 +64,7 @@ pub fn _aperture() -> Palette {
 pub fn _bright_pastel() -> Palette {
     let green = Vec3::hexcode("5EFC8D").unwrap();
     let lavender = Vec3::hexcode("FDECEF").unwrap();
-    let _pink = Vec3::hexcode("EF476F").unwrap();
+    let pink = Vec3::hexcode("EF476F").unwrap();
     let indigo = Vec3::hexcode("8377D1").unwrap();
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 
@@ -73,7 +75,7 @@ pub fn _bright_pastel() -> Palette {
         wall: indigo,
         background: lavender,
         fruit: sunglow,
-        // enemy: pink
+        enemy: pink,
     }
     .srgb_to_linear()
 }
@@ -81,7 +83,7 @@ pub fn _bright_pastel() -> Palette {
 pub fn dark_pastel() -> Palette {
     let dark_blue = Vec3::hexcode("102542").unwrap();
     let light_blue = Vec3::hexcode("9DCDC0").unwrap();
-    let _pink = Vec3::hexcode("EF476F").unwrap();
+    let pink = Vec3::hexcode("EF476F").unwrap();
     let indigo = Vec3::hexcode("8377D1").unwrap();
     let sunglow = Vec3::hexcode("FFD166").unwrap();
 
@@ -92,7 +94,7 @@ pub fn dark_pastel() -> Palette {
         wall: indigo,
         background: dark_blue,
         fruit: sunglow,
-        // enemy: pink
+        enemy: pink,
     }
     .srgb_to_linear()
 }
@@ -105,6 +107,6 @@ pub fn crt() -> Palette {
         wall: Vec3::new(1.0, 1.0, 1.0),
         background: Vec3::rgb(2, 2, 2),
         fruit: Vec3::new(1.0, 0.0, 0.0),
-        // enemy
+        enemy: Vec3::new(1.0, 1.0, 0.1),
     }
 }

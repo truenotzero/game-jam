@@ -1,7 +1,6 @@
 use core::{arch, panic};
 use std::{
     mem::swap,
-    os::windows::thread,
     sync::mpsc::{self, Receiver, Sender},
     time::Duration,
 };
@@ -30,27 +29,33 @@ pub enum _RoomType {
 type Hall = Box<Room>;
 
 pub struct Room {
+    snake_id: EntityId,
+
     position: Vec2,
     dimensions: Scale,
     parts: Vec<EntityId>,
 
     last_hall: Option<Hall>,
     hall: Option<Hall>,
+    hall_open: bool,
     hall_direction: Direction,
     hall_width: f32,
 }
 
 impl Room {
-    fn new(man: &mut EntityManager, position: Vec2, dimensions: Scale) -> Self {
+    fn new(man: &mut EntityManager, position: Vec2, dimensions: Scale, snake_id: EntityId) -> Self {
         let dimensions = dimensions + Vec2::diagonal(2.0);
 
         let mut this = Self {
+            snake_id,
+
             position,
             dimensions,
             parts: Vec::new(),
 
             last_hall: None,
             hall: None,
+            hall_open: false,
             hall_direction: Direction::default(),
             hall_width: 0.0,
         };
@@ -79,8 +84,10 @@ impl Room {
         pos + 0.5 * d * (dim + dimensions)
     }
 
-    pub fn take_last_hall(&mut self, other: &mut Self) {
-        swap(&mut self.last_hall, &mut other.hall)
+    /// give hallway and snake into self
+    pub fn swap(&mut self, other: &mut Self) {
+        swap(self, other);
+        swap(&mut self.last_hall, &mut other.hall);
     }
 
     fn make_hall(
@@ -118,7 +125,7 @@ impl Room {
             _ => panic!(),
         };
 
-        let hall = Self::new(man, pos, dim);
+        let hall = Self::new(man, pos, dim, self.snake_id);
         self.hall = Some(Box::new(hall));
         self.hall_direction = direction;
         self.hall_width = width;
@@ -192,7 +199,9 @@ impl Room {
     /// returns two trigger listeners
     /// the first triggers when the player leaves the room and enters the hallway
     /// the second triggers when the player is about to leave the hallway and enter the next room
-    pub fn open_hallway(&mut self, man: &mut EntityManager) -> (Receiver<()>, Receiver<()>) {
+    pub fn open_hallway(&mut self, man: &mut EntityManager) -> Option<(Receiver<()>, Receiver<()>)> {
+        if self.hall_open { return None; }
+        self.hall_open = true;
         let hall = self.hall.as_mut().expect("should have hallway");
 
         archetype::oneshot::play_sound(man, Sounds::RoomUnlocked);
@@ -214,7 +223,7 @@ impl Room {
             Some(tx_near.clone()),
         );
 
-        (rx_near, rx_far)
+        Some((rx_near, rx_far))
     }
 
     pub fn redraw_walls_and_bg(&mut self, man: &mut EntityManager) {
@@ -232,6 +241,10 @@ impl Room {
         );
 
         new_parts.push(bg);
+
+        // debug make tile at local 0.0
+        let middle = archetype::wall::new(man, Vec3::from((self.position, 0.0)));
+        new_parts.push(middle);
 
         let width = self.dimensions.x as usize;
         let height = self.dimensions.y as usize;
@@ -304,6 +317,10 @@ impl Room {
         }
 
         if let Some(hall) = &mut self.hall {
+            hall.destroy(man);
+        }
+
+        if let Some(hall) = &mut self.last_hall {
             hall.destroy(man);
         }
     }
@@ -379,7 +396,6 @@ impl Room {
         let dim = last_scale * name.dimensions();
         let dim_y = dim.y / name.frames() as f32;
         let position = Vec2::new(last_pos.x, last_pos.y + 0.5 * (last_dim.y + dim_y));
-        println!("putting text under at {position:?}");
         Some(Self::text_at(
             self,
             man,
@@ -406,21 +422,22 @@ impl Room {
     }
 
     // Room types
-    fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale) -> Self {
-        let mut ret = Self::new(man, position, dimensions);
+    fn empty(man: &mut EntityManager, position: Vec2, side: Direction, dimensions: Scale, snake_id: EntityId) -> Self {
+        let mut ret = Self::new(man, position, dimensions, snake_id);
         ret.make_hall(man, side, 2, 28);
         ret
     }
 
     pub fn tut_controls(man: &mut EntityManager) -> (Self, Receiver<()>) {
+        let snek = snake::new(man);
         let mut ret = Self::empty(
             man,
             Vec2::new(0.0, 0.0),
             Direction::random(),
             Vec2::diagonal(20.0),
+            snek,
         );
 
-        let snek = snake::new(man);
         let snek_move_rx = snake::make_move_trigger(man, snek);
 
         ret.text_at(
@@ -467,13 +484,13 @@ impl Room {
         let fruit_txt = ret.text_at(
             man,
             TextNames::Fruit,
-            Vec2::new(0.0, -ret.dimensions.y / 5.0),
+            Vec2::new(-ret.dimensions.x / 7.0, -ret.dimensions.y / 5.0),
             1.0 / 14.0,
         );
         let fruit_glitch_txt = ret
-            .text_under(man, fruit_txt, TextNames::FruitGlitch)
+            .text_after(man, fruit_txt, TextNames::FruitGlitch)
             .unwrap();
-        let fruit_id = fruit::bounded(man, ret.position, ret.dimensions, 3);
+        let fruit_id = fruit::bounded(man, ret.position, ret.dimensions, 2);
         let on_eat = fruit::make_eaten_trigger(man, fruit_id);
         let on_kill = fruit::make_kill_trigger(man, fruit_id);
         text::add_glitch_trigger(man, fruit_glitch_txt, on_eat);
@@ -512,9 +529,12 @@ impl Room {
         text::enable_glitching(man, attack_glitch_txt);
         text::enable_glitching(man, empower_glitch_txt);
         text::enable_glitching(man, fruit_glitch_txt);
+        
+        let (enable_attack, ea_rx) = mpsc::channel();
+        let _ = enable_attack.send(());
+        snake::add_attack_enable_trigger(man, ret.snake_id, ea_rx);
+        let rx = snake::make_attack_trigger(man, ret.snake_id);
 
-        let (tx, rx) = mpsc::channel();
-        //        let _ = tx.send(());
         (ret, rx)
     }
 
@@ -530,7 +550,7 @@ impl Room {
                 break rand;
             }
         };
-        let mut ret = Self::empty(man, next_pos, rand_side, dimensions);
+        let mut ret = Self::empty(man, next_pos, rand_side, dimensions, last.snake_id);
         ret.break_wall(man, last.hall_direction.reverse(), last.hall_width, None);
         ret
     }
@@ -541,9 +561,9 @@ impl Room {
 }
 
 pub type FnRoomGen = fn(&mut EntityManager, &Room) -> (Room, Receiver<()>);
-const ROOM_ORDER: [FnRoomGen; 1] = [
-    // Room::tut_fruit,
-    // Room::tut_attack,
+const ROOM_ORDER: [FnRoomGen; 3] = [
+    Room::tut_fruit,
+    Room::tut_attack,
     Room::tut_enemy,
     // Room::procedural,
 ];

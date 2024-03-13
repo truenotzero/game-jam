@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'game-jam'",
+            "name": "Debug executable 'snek'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=game-jam",
-                    "--package=game-jam"
+                    "--bin=snek",
+                    "--package=snek"
                 ],
                 "filter": {
-                    "name": "game-jam",
+                    "name": "snek",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'game-jam'",
+            "name": "Debug unit tests in executable 'snek'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=game-jam",
-                    "--package=game-jam"
+                    "--bin=snek",
+                    "--package=snek"
                 ],
                 "filter": {
-                    "name": "game-jam",
+                    "name": "snek",
                     "kind": "bin"
                 }
             },

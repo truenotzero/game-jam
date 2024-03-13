@@ -26,7 +26,7 @@ Fixes:
 - [ ] Collision detection
 - [ ] Closing up past rooms/hallways
 - [ ] Forcefield overlapping
-- [ ] Mouse-following projectiles
+- [x] Mouse-to-world coordinate converison
 
 
 After the jam:

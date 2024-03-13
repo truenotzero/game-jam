@@ -1,4 +1,4 @@
-//#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 
 use std::mem::{self, swap};
 
@@ -21,7 +21,6 @@ use render::swoop::SwoopManager;
 use render::text::TextManager;
 use render::RenderManager;
 use sound::{SoundManager, Sounds};
-use world::Room;
 
 use crate::math::{Mat4, Vec4};
 
@@ -187,10 +186,8 @@ impl<'a> Game<'a> {
             let (mut next_room, next_trigger) =
                 world::next_room(&mut self.room_ctr)(&mut self.man, &self.room);
             self.open_hall_trigger = next_trigger;
-            next_room.take_last_hall(&mut self.room);
 
-            // swap rooms
-            swap(&mut next_room, &mut self.room);
+            self.room.swap(&mut next_room);
             self.last_room = Some(next_room);
         }
 
@@ -207,9 +204,10 @@ impl<'a> Game<'a> {
 
         // hall open trigger
         if self.open_hall_trigger.try_recv().is_ok() {
-            let (hall, room) = self.room.open_hallway(&mut self.man);
-            self.pan_to_hall_trigger = Some(hall);
-            self.pan_to_room_trigger = Some(room);
+            if let Some((hall, room)) = self.room.open_hallway(&mut self.man) {
+                self.pan_to_hall_trigger = Some(hall);
+                self.pan_to_room_trigger = Some(room);
+            }
         }
     }
 
@@ -224,9 +222,10 @@ impl<'a> Game<'a> {
                 self.move_camera(Mat4::scale(0.25.into()) * view);
             }
             Key::B => {
-                let (hall, room) = self.room.open_hallway(&mut self.man);
-                self.pan_to_hall_trigger = Some(hall);
-                self.pan_to_room_trigger = Some(room);
+                if let Some((hall, room)) = self.room.open_hallway(&mut self.man) {
+                    self.pan_to_hall_trigger = Some(hall);
+                    self.pan_to_room_trigger = Some(room);
+                }
             }
             _ => (),
         }
@@ -241,15 +240,18 @@ impl<'a> Game<'a> {
         let ny = screen_y as f32 / self.view_height;
 
         // normalized [-1,1]
-        let ndc_x = 2.0 * nx - 1.0;
-        let ndc_y = 2.0 * ny - 1.0;
+        let ndc_x =   2.0 * nx - 1.0;
+        let ndc_y = -(2.0 * ny - 1.0);
 
         // world coords
-        let in_view = self.current_view.inverse();
+        let in_view = self.current_view.invert_screem();
+        println!("view:\n{}", self.current_view);
+        println!("inverse:\n{}", in_view);
+        println!("unit?:\n{}", self.current_view * in_view);
         let Vec4 { x, y, .. } = in_view * Vec4::position(Vec3::new(ndc_x, ndc_y, 0.0));
 
-        //
-        let pos = Vec2::new(x, -y) + self.room.position();
+        let pos = Vec2::new(x, y);
+        println!("mouse: {pos:?}");
         let _ = self.mouse_tx.send(pos);
     }
 }

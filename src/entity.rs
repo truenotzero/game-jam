@@ -34,6 +34,7 @@ pub enum Entities {
     Swoop,
     Text,
     Logic,
+    Enemy,
 }
 
 impl fmt::Display for Entities {
@@ -53,6 +54,7 @@ impl Entities {
             Self::Swoop => swoop::tick(dt, entity),
             Self::Text => text::tick(dt, entity),
             Self::Logic => logic::tick(dt, entity),
+            Self::Enemy => enemy::tick(dt, entity),
             _ => (),
         }
     }
@@ -68,6 +70,7 @@ impl Entities {
             Self::Fireball => fireball::draw(entity, renderer, palette),
             Self::Swoop => swoop::draw(entity, renderer),
             Self::Text => text::draw(entity, renderer),
+            Self::Enemy => enemy::draw(entity, renderer, palette),
             _ => (),
         }
     }

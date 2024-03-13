@@ -84,7 +84,7 @@ impl TextNames {
             Self::Snek => Vec2::new(62.0, 14.0),
             Self::SnekGlitch => Vec2::new(14.0, 96.0),
             Self::Controls => Vec2::new(142.0, 38.0),
-            Self::Fruit => Vec2::new(110.0, 14.0),
+            Self::Fruit => Vec2::new(126.0, 14.0),
             Self::FruitGlitch => Vec2::new(142.0, 192.0),
             Self::FruitGlitchVariant => Vec2::new(142.0, 192.0),
             Self::Attack => Vec2::new(238.0, 14.0),
